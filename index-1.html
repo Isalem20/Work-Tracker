@@ -1,0 +1,3073 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Work Hours Tracker</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0f14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Work Tracker">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+:root {
+  --bg:#0b0f14;--surface:#13181f;--card:#1a2030;--card2:#1e2535;
+  --border:#2a3345;--border2:#3a4560;
+  --accent:#00d4aa;--accent2:#3b82f6;--accent3:#8b5cf6;
+  --text:#e8eef8;--text2:#a0aec0;--muted:#606880;
+  --success:#22c55e;--warn:#f59e0b;--danger:#ef4444;--ot:#f97316;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:80px}
+
+/* NAV */
+.nav-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 16px;display:flex;gap:4px;position:sticky;top:0;z-index:100;overflow-x:auto}
+.nav-tab{padding:14px 16px;font-family:'Inter',sans-serif;font-size:0.83rem;font-weight:700;color:var(--muted);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+.nav-tab:hover{color:var(--text2)}
+.nav-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* PAGES */
+.page{display:none;padding:20px 16px;max-width:800px;margin:0 auto}
+.page.active{display:block}
+
+/* PAGE HEADER */
+.page-header{margin-bottom:20px}
+.page-header h2{font-size:1.35rem;font-weight:900}
+.page-header p{color:var(--muted);font-size:0.83rem;margin-top:3px}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px}
+.card-title{font-size:0.88rem;font-weight:700;color:var(--text2);margin-bottom:14px;display:flex;align-items:center;gap:7px}
+
+/* TODAY DATE BAR */
+.today-bar{background:linear-gradient(135deg,rgba(0,212,170,.12),rgba(59,130,246,.08));border:1px solid rgba(0,212,170,.25);border-radius:12px;padding:13px 17px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.today-bar .date-text{font-size:1rem;font-weight:700;color:var(--accent)}
+.today-bar .day-name{font-size:0.78rem;color:var(--muted);margin-top:2px}
+
+/* TIME INPUTS */
+.time-inputs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.inp-group{display:flex;flex-direction:column;gap:5px}
+.inp-group label{font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.time-wrap{position:relative;display:flex;align-items:center}
+.time-wrap input[type="time"]{background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 12px 11px 38px;font-family:'Inter',sans-serif;font-size:1.05rem;font-weight:700;width:100%;transition:border-color .2s,box-shadow .2s;direction:ltr;text-align:center}
+.time-wrap input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,170,.1)}
+.time-icon{position:absolute;left:10px;color:var(--muted);font-size:.95rem;pointer-events:none}
+
+/* LIVE PREVIEW */
+.live-preview{display:flex;gap:10px;margin-bottom:12px}
+.live-chip{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:9px 12px;text-align:center}
+.lc-label{font-size:0.68rem;color:var(--muted);font-weight:600}
+.lc-val{font-size:1.05rem;font-weight:900;margin-top:1px;direction:ltr}
+.lc-val.work{color:var(--success)}
+.lc-val.ot{color:var(--ot)}
+
+/* OFF TOGGLE */
+.off-toggle{display:flex;align-items:center;gap:10px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:9px;cursor:pointer;margin-bottom:12px;transition:all .2s}
+.off-toggle.active{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3)}
+.tog-sw{width:36px;height:21px;background:var(--border);border-radius:11px;position:relative;transition:background .2s;flex-shrink:0}
+.tog-sw::after{content:'';position:absolute;width:15px;height:15px;background:#fff;border-radius:50%;top:3px;left:3px;transition:transform .2s}
+.off-toggle.active .tog-sw{background:var(--danger)}
+.off-toggle.active .tog-sw::after{transform:translateX(15px)}
+.off-toggle span{font-size:0.87rem;font-weight:600;color:var(--text2)}
+
+/* NOTE */
+.note-input{background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px 13px;font-family:'Inter',sans-serif;font-size:0.87rem;width:100%;resize:none;margin-bottom:12px;transition:border-color .2s}
+.note-input:focus{outline:none;border-color:var(--accent)}
+
+/* BUTTONS */
+.btn-primary{width:100%;padding:13px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0b0f14;font-family:'Inter',sans-serif;font-size:.97rem;font-weight:800;cursor:pointer;transition:all .2s}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,170,.3)}
+.btn-primary:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-secondary{background:none;border:1px solid var(--border);color:var(--text2);padding:11px 14px;border-radius:9px;font-family:'Inter',sans-serif;font-size:0.87rem;cursor:pointer;font-weight:700;transition:all .2s}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-export{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-family:'Inter',sans-serif;font-size:.9rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px}
+.btn-export:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,212,170,.04)}
+
+/* SAVED STATE */
+.saved-card{display:flex;align-items:center;justify-content:space-between}
+.saved-info{font-weight:700;font-size:.93rem}
+.saved-sub{font-size:.75rem;color:var(--muted);margin-top:3px}
+
+/* TAG PILL */
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:700}
+.tag-ot{background:rgba(249,115,22,.12);color:var(--ot)}
+.tag-off{background:rgba(239,68,68,.08);color:var(--danger)}
+.tag-work{background:rgba(34,197,94,.1);color:var(--success)}
+.tag-carry{background:rgba(139,92,246,.12);color:var(--accent3)}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card2);border:1px solid var(--border2);border-radius:50px;padding:10px 22px;font-size:.87rem;font-weight:700;color:var(--text);z-index:999;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.success{border-color:rgba(34,197,94,.4);color:var(--success)}
+.toast.error{border-color:rgba(239,68,68,.4);color:var(--danger)}
+
+/* MINI CAL */
+.mini-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:14px}
+.cal-hdr{font-size:.63rem;font-weight:700;color:var(--muted);text-align:center;padding:3px 0}
+.cal-day{aspect-ratio:1;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:600;border:1px solid transparent}
+.cal-day.empty{background:none}
+.cal-day.has-work{background:rgba(34,197,94,.12);color:var(--success);border-color:rgba(34,197,94,.2)}
+.cal-day.has-ot{background:rgba(249,115,22,.12);color:var(--ot);border-color:rgba(249,115,22,.2)}
+.cal-day.has-off{background:rgba(239,68,68,.07);color:var(--danger);border-color:rgba(239,68,68,.15)}
+.cal-day.today-mark{border-color:var(--accent)!important;box-shadow:0 0 0 2px rgba(0,212,170,.2)}
+.cal-day.future{background:rgba(255,255,255,.02);color:var(--muted)}
+.cal-day.past-cutoff{box-shadow:inset 0 0 0 1px var(--accent3)}
+
+/* LOG LIST */
+.log-list{display:flex;flex-direction:column;gap:8px}
+.log-item{display:flex;align-items:center;gap:11px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:10px;transition:all .15s;cursor:pointer}
+.log-item:hover{border-color:var(--border2)}
+.log-item:active{transform:scale(0.99)}
+.log-num{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.88rem;flex-shrink:0}
+.log-item.lwork .log-num{background:rgba(34,197,94,.12);color:var(--success)}
+.log-item.lot .log-num{background:rgba(249,115,22,.12);color:var(--ot)}
+.log-item.loff .log-num{background:rgba(239,68,68,.08);color:var(--danger)}
+.log-info{flex:1;min-width:0}
+.log-times{font-size:.87rem;font-weight:700;direction:ltr;color:var(--text)}
+.log-note{font-size:.73rem;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-hours{text-align:right;flex-shrink:0}
+.log-hw{font-size:.8rem;font-weight:700;color:var(--success);direction:ltr}
+.log-hot{font-size:.73rem;color:var(--ot);font-weight:700;direction:ltr}
+.log-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.83rem;padding:4px 6px;border-radius:6px;transition:all .15s;flex-shrink:0}
+.log-del:hover{background:rgba(239,68,68,.1);color:var(--danger)}
+
+/* EXPENSE DAY GROUPING */
+.exp-day-group{border-radius:12px;padding:10px;margin-bottom:10px;border:1px solid var(--border)}
+.exp-day-group.exp-day-stripe-a{background:rgba(255,255,255,.015)}
+.exp-day-group.exp-day-stripe-b{background:rgba(0,212,170,.03)}
+.exp-day-header{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 8px;font-size:.78rem;font-weight:700;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:8px}
+.exp-day-total{color:var(--accent);font-weight:800;direction:ltr}
+
+/* MONTH NAV */
+.month-nav{display:flex;align-items:center;justify-content:center;gap:13px;margin-bottom:14px}
+.mn-btn{width:33px;height:33px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.97rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.mn-btn:hover{border-color:var(--accent);color:var(--accent)}
+.mn-label{font-weight:800;font-size:.97rem;min-width:130px;text-align:center}
+
+/* STATS */
+.stat-row{display:grid;grid-template-columns:repeat(2,1fr);gap:11px;margin-bottom:14px}
+.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:15px;text-align:center}
+.sb-val{font-size:1.65rem;font-weight:900;line-height:1}
+.sb-label{font-size:.7rem;font-weight:600;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.4px}
+.stat-box.green .sb-val{color:var(--success)}
+.stat-box.orange .sb-val{color:var(--ot)}
+.stat-box.blue .sb-val{color:var(--accent2)}
+.stat-box.red .sb-val{color:var(--danger)}
+.stat-box.purple .sb-val{color:var(--accent3)}
+
+/* SALARY TABLE */
+.sal-table{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.sal-row{display:flex;justify-content:space-between;align-items:center;padding:12px 17px;border-bottom:1px solid var(--border);font-size:.87rem}
+.sal-row:last-child{border-bottom:none}
+.sal-row.total{background:linear-gradient(135deg,rgba(0,212,170,.08),rgba(59,130,246,.05));font-weight:700;font-size:.93rem}
+.sal-val{font-weight:700;direction:ltr}
+.sal-val.g{color:var(--success)}
+.sal-val.o{color:var(--ot)}
+.sal-val.b{color:var(--accent2)}
+.sal-val.p{color:var(--accent3)}
+.sal-val.big{color:var(--accent);font-size:1.12rem}
+
+/* SETTINGS */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.settings-grid .full{grid-column:1/-1}
+.sf-group{display:flex;flex-direction:column;gap:5px}
+.sf-group label{font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.sf-group input,.sf-group select{background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 13px;font-family:'Inter',sans-serif;font-size:.93rem;width:100%;transition:border-color .2s,box-shadow .2s;direction:ltr}
+.sf-group input:focus,.sf-group select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,170,.1)}
+.sf-hint{font-size:.72rem;color:var(--muted);margin-top:2px;line-height:1.4}
+
+/* SETUP OVERLAY */
+.setup-overlay{position:fixed;inset:0;background:rgba(11,15,20,.97);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.setup-box{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:26px 22px;width:100%;max-width:420px}
+.setup-box h2{font-size:1.25rem;font-weight:900;margin-bottom:5px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.setup-box p{color:var(--muted);font-size:.83rem;margin-bottom:18px;line-height:1.6}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:36px 20px;color:var(--muted)}
+.empty-state .es-icon{font-size:2.3rem;margin-bottom:9px}
+.empty-state p{font-size:.87rem}
+
+/* BULK PREVIEW */
+.alert-box{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px 14px;font-size:.82rem;max-height:200px;overflow-y:auto}
+.alert-box .ab-line{padding:4px 0;border-bottom:1px solid rgba(48,54,61,.4)}
+.alert-box .ab-line:last-child{border-bottom:none}
+.alert-box .ab-ok{color:var(--success)}
+.alert-box .ab-err{color:var(--danger)}
+.alert-box .ab-summary{font-weight:700;margin-bottom:8px;color:var(--text)}
+
+/* CUTOFF BANNER */
+.cutoff-banner{background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:12px;padding:13px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cutoff-banner .cb-text{font-size:.83rem;color:var(--text2);line-height:1.5}
+.cutoff-banner .cb-text b{color:var(--accent3)}
+.cutoff-edit-row{display:flex;gap:10px;align-items:center;margin-top:10px}
+.cutoff-edit-row input{width:70px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 10px;font-family:'Inter',sans-serif;font-size:.85rem;text-align:center}
+.cutoff-edit-row label{font-size:.78rem;color:var(--muted);font-weight:600}
+
+/* EXPENSE TYPE TOGGLE */
+.btn-secondary.exp-active-work{background:rgba(249,115,22,.12);border-color:var(--ot);color:var(--ot)}
+.btn-secondary.exp-active-personal{background:rgba(139,92,246,.12);border-color:var(--accent3);color:var(--accent3)}
+
+/* QUICK ACTION */
+#quickCard{border-color:rgba(0,212,170,.2)}
+
+@media(max-width:480px){
+  .settings-grid{grid-template-columns:1fr}
+  .nav-tab{padding:12px 10px;font-size:.76rem}
+  .sb-val{font-size:1.4rem}
+}
+</style>
+</head>
+<body>
+
+<!-- PASSWORD LOCK OVERLAY -->
+<div class="setup-overlay" id="lockOverlay" style="display:none">
+  <div class="setup-box">
+    <h2>🔒 Enter Password</h2>
+    <p>This app is locked. Enter your 4-digit password to continue.</p>
+    <div class="sf-group full" style="margin-bottom:14px">
+      <input type="password" id="lockPassInp" inputmode="numeric" maxlength="4" placeholder="••••" style="background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:14px;font-family:'Inter',sans-serif;font-size:1.4rem;width:100%;text-align:center;letter-spacing:8px" onkeydown="if(event.key==='Enter')checkLockPassword()">
+    </div>
+    <div id="lockError" style="color:var(--danger);font-size:.82rem;margin-bottom:10px;display:none">Incorrect password. Try again.</div>
+    <button class="btn-primary" onclick="checkLockPassword()">Unlock →</button>
+  </div>
+</div>
+
+<!-- SETUP OVERLAY -->
+<div class="setup-overlay" id="setupOverlay">
+  <div class="setup-box">
+    <h2>⚡ Initial Setup</h2>
+    <p>Enter your work details once — the app saves them on this device and remembers them.</p>
+    <div class="settings-grid">
+      <div class="sf-group full">
+        <label>Base Monthly Salary</label>
+        <input type="number" id="su_salary" placeholder="e.g. 8000" min="0">
+      </div>
+      <div class="sf-group">
+        <label>Daily Work Hours</label>
+        <input type="number" id="su_dailyH" value="8" min="1" max="24">
+        <span class="sf-hint">A full day is exactly this many hours — anything beyond is overtime.</span>
+      </div>
+      <div class="sf-group">
+        <label>Work Days / Week</label>
+        <select id="su_wdays">
+          <option value="5">5 days</option>
+          <option value="6" selected>6 days</option>
+        </select>
+      </div>
+      <div class="sf-group full">
+        <label>Overtime Multiplier</label>
+        <select id="su_otmult">
+          <option value="1">× 1 (hour for hour)</option>
+          <option value="1.25">× 1.25</option>
+          <option value="1.5" selected>× 1.5 (standard)</option>
+          <option value="2">× 2 (double)</option>
+        </select>
+      </div>
+      <div class="sf-group full"><hr style="border:none;border-top:1px solid var(--border);margin:6px 0"></div>
+      <div class="sf-group">
+        <label>Annual Leave Balance</label>
+        <input type="number" id="su_annualLeave" placeholder="e.g. 21" min="0">
+      </div>
+      <div class="sf-group">
+        <label>Casual Leave Balance</label>
+        <input type="number" id="su_casualLeave" placeholder="e.g. 6" min="0">
+      </div>
+      <div class="sf-group full">
+        <label>Compensatory ("Badal") Leave Balance</label>
+        <input type="number" id="su_compLeave" value="0" min="0">
+        <span class="sf-hint">Earned when you work an official holiday the company doesn't grant off.</span>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="saveSetup()" style="margin-top:16px">Start Tracking →</button>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="nav-bar">
+  <button class="nav-tab active" onclick="showPage('today',this)">📝 Today</button>
+  <button class="nav-tab" onclick="showPage('log',this)">📅 Log</button>
+  <button class="nav-tab" onclick="showPage('report',this)">📊 Report</button>
+  <button class="nav-tab" onclick="showPage('pasthours',this)">🗂️ Past Hours</button>
+  <button class="nav-tab" onclick="showPage('expenses',this)">💵 Expenses</button>
+  <button class="nav-tab" onclick="showPage('settled',this)">📁 Settled</button>
+  <button class="nav-tab" onclick="showPage('settings',this)">⚙️ Settings</button>
+</nav>
+
+<!-- TODAY PAGE -->
+<div class="page active" id="page-today">
+  <div class="page-header">
+    <h2>Log Today</h2>
+    <p>Check in now, check out later — or enter both at once</p>
+  </div>
+
+  <div class="today-bar">
+    <div>
+      <div class="date-text" id="todayDateTxt">—</div>
+      <div class="day-name" id="todayDayTxt">—</div>
+    </div>
+    <div id="todayBadge" style="display:none">
+      <span class="tag tag-work">✓ Saved</span>
+    </div>
+  </div>
+
+  <div class="cutoff-banner" id="backupReminderBanner" style="display:none;border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.08)">
+    <div class="cb-text" id="backupReminderText" style="color:var(--warn)"></div>
+    <button class="btn-secondary" onclick="exportBackup()">⬇️ Backup Now</button>
+  </div>
+
+  <!-- Quick check-in / check-out card -->
+  <div class="card" id="quickCard">
+    <div class="card-title">⚡ Quick Action</div>
+    <div id="quickStatus" style="margin-bottom:12px;font-size:.87rem;color:var(--text2)"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" id="quickCheckinBtn" style="margin-top:0" onclick="quickCheckin()">🟢 Check In Now</button>
+      <button class="btn-primary" id="quickCheckoutBtn" style="margin-top:0;display:none;background:linear-gradient(135deg,var(--ot),#ef4444)" onclick="quickCheckout()">🔴 Check Out Now</button>
+    </div>
+  </div>
+
+  <button class="btn-secondary" style="width:100%;margin-bottom:10px" onclick="openBulkEntry()">📋 Bulk-enter a full month as text</button>
+  <button class="btn-secondary" style="width:100%;margin-bottom:14px" onclick="openMultiDayShift()">🌙 Log a Multi-Day Shift (no sleep/no break across days)</button>
+
+  <!-- Form -->
+  <div class="card" id="todayFormCard">
+    <div class="card-title">⏰ Manual Entry</div>
+
+    <div class="time-inputs">
+      <div class="inp-group">
+        <label>Check-in</label>
+        <div class="time-wrap">
+          <span class="time-icon">🟢</span>
+          <input type="time" id="attendInp" oninput="liveCalc()">
+        </div>
+      </div>
+      <div class="inp-group">
+        <label>Check-out</label>
+        <div class="time-wrap">
+          <span class="time-icon">🔴</span>
+          <input type="time" id="leaveInp" oninput="liveCalc()">
+        </div>
+      </div>
+    </div>
+
+    <div class="live-preview" id="livePreview" style="display:none">
+      <div class="live-chip">
+        <div class="lc-label">Work Hours</div>
+        <div class="lc-val work" id="liveWork">—</div>
+      </div>
+      <div class="live-chip">
+        <div class="lc-label">Overtime</div>
+        <div class="lc-val ot" id="liveOT">—</div>
+      </div>
+    </div>
+
+    <div class="off-toggle" id="offToggle" onclick="toggleOff()">
+      <div class="tog-sw"></div>
+      <span>Day off / Absent</span>
+    </div>
+
+    <div class="sf-group full" id="leaveTypeWrap" style="display:none;margin-bottom:12px">
+      <label>Leave Type — which balance should this use?</label>
+      <select id="leaveTypeSel" style="background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 13px;font-family:'Inter',sans-serif;font-size:.93rem;width:100%">
+        <option value="paid">Paid Holiday (Friday / official — no balance used)</option>
+        <option value="annual">Annual Leave</option>
+        <option value="casual">Casual Leave</option>
+        <option value="comp">Compensatory ("Badal") Leave</option>
+        <option value="unpaid">Unpaid (not from any balance)</option>
+      </select>
+      <span class="sf-hint" id="leaveTypeAutoHint" style="display:none;color:var(--accent3)"></span>
+    </div>
+
+    <textarea class="note-input" id="noteInp" rows="2" placeholder="Optional note..."></textarea>
+
+    <button class="btn-primary" onclick="saveToday()">💾 Save Day</button>
+  </div>
+
+  <!-- Saved state -->
+  <div class="card" id="todaySavedCard" style="display:none">
+    <div class="saved-card">
+      <div>
+        <div class="saved-info" id="savedInfo">—</div>
+        <div class="saved-sub">Saved successfully ✓</div>
+      </div>
+      <button class="btn-secondary" onclick="editToday()">Edit</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOG PAGE -->
+<div class="page" id="page-log">
+  <div class="page-header"><h2>Attendance Log</h2></div>
+
+  <div class="month-nav">
+    <button class="mn-btn" onclick="chLogMonth(-1)">‹</button>
+    <div class="mn-label" id="logMonthLbl">—</div>
+    <button class="mn-btn" onclick="chLogMonth(1)">›</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📆 Monthly Calendar</div>
+    <div class="mini-cal" id="miniCal"></div>
+    <div style="display:flex;gap:12px;font-size:.72rem;color:var(--muted);margin-top:4px;flex-wrap:wrap">
+      <span><span style="color:var(--success)">■</span> Normal</span>
+      <span><span style="color:var(--ot)">■</span> Overtime</span>
+      <span><span style="color:var(--danger)">■</span> Off</span>
+      <span><span style="color:var(--accent3)">▢</span> After cutoff</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 Day Details</div>
+    <div class="log-list" id="logList"></div>
+  </div>
+</div>
+
+<!-- REPORT PAGE -->
+<div class="page" id="page-report">
+  <div class="page-header"><h2>Monthly Report</h2></div>
+
+  <div class="card">
+    <div class="card-title">🌴 Leave Balances</div>
+    <div class="stat-row">
+      <div class="stat-box blue"><div class="sb-val" id="balAnnualVal">0</div><div class="sb-label">Annual Left</div></div>
+      <div class="stat-box orange"><div class="sb-val" id="balCasualVal">0</div><div class="sb-label">Casual Left</div></div>
+      <div class="stat-box purple"><div class="sb-val" id="balCompVal">0</div><div class="sb-label">Compensatory Left</div></div>
+    </div>
+  </div>
+
+  <div class="month-nav">
+    <button class="mn-btn" onclick="chRepMonth(-1)">‹</button>
+    <div class="mn-label" id="repMonthLbl">—</div>
+    <button class="mn-btn" onclick="chRepMonth(1)">›</button>
+  </div>
+
+  <div class="cutoff-banner">
+    <div class="cb-text" id="cutoffText">No payroll cutoff set for this month — full month counts normally.</div>
+    <button class="btn-secondary" onclick="toggleCutoffEdit()" id="cutoffEditBtn">Set cutoff day</button>
+  </div>
+  <div class="card" id="cutoffEditCard" style="display:none">
+    <div class="card-title">✂️ Payroll Cutoff Day</div>
+    <p class="sf-hint" style="margin-bottom:10px">Set the day payroll was closed this month. Overtime <b>after</b> this day still shows in this month's log, but its pay carries over and gets added to next month's overtime pay.</p>
+    <div class="cutoff-edit-row">
+      <label>Cutoff day:</label>
+      <input type="number" id="cutoffDayInp" min="1" max="31" placeholder="e.g. 25">
+      <button class="btn-primary" style="margin-top:0;width:auto;padding:9px 18px" onclick="saveCutoff()">Save</button>
+      <button class="btn-secondary" onclick="clearCutoff()">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">➕ Manual Overtime Carry-in</div>
+    <p class="sf-hint" style="margin-bottom:10px">
+      If last month's payroll was closed before month-end, the leftover days' overtime usually carries in automatically once you set last month's cutoff day. But if you'd rather just type in the carried-over overtime directly for this month, enter it here.
+    </p>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div class="sf-group" style="flex:1;min-width:100px">
+        <label>Hours</label>
+        <input type="number" id="manualCarryHours" min="0" placeholder="e.g. 5">
+      </div>
+      <div class="sf-group" style="flex:1;min-width:100px">
+        <label>Minutes</label>
+        <input type="number" id="manualCarryMins" min="0" max="59" placeholder="e.g. 0">
+      </div>
+      <button class="btn-primary" style="margin-top:0;width:auto;padding:11px 18px;flex-shrink:0" onclick="saveManualCarry()">Save</button>
+    </div>
+    <div id="manualCarryCurrent" style="margin-top:10px;font-size:.82rem;color:var(--text2)"></div>
+  </div>
+
+  <div id="reportContent"></div>
+  <button class="btn-export" onclick="exportExcel()">⬇️ Export to Excel</button>
+</div>
+
+<!-- SETTINGS PAGE -->
+<div class="page" id="page-settings">
+  <div class="page-header">
+    <h2>Settings</h2>
+    <p>Your data is saved on this device</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💼 Work Details</div>
+    <div class="settings-grid">
+      <div class="sf-group full">
+        <label>Base Monthly Salary</label>
+        <input type="number" id="s_salary" min="0">
+      </div>
+      <div class="sf-group">
+        <label>Daily Work Hours</label>
+        <input type="number" id="s_dailyH" min="1" max="24">
+        <span class="sf-hint">Exactly this many hours = a full day. No rounding.</span>
+      </div>
+      <div class="sf-group">
+        <label>Work Days / Week</label>
+        <select id="s_wdays">
+          <option value="5">5 days</option>
+          <option value="6">6 days</option>
+        </select>
+      </div>
+      <div class="sf-group full">
+        <label>Overtime Multiplier</label>
+        <select id="s_otmult">
+          <option value="1">× 1 (hour for hour)</option>
+          <option value="1.25">× 1.25</option>
+          <option value="1.5">× 1.5 (standard)</option>
+          <option value="2">× 2</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="saveSettings()" style="margin-top:16px">Save Settings</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🌴 Leave Balances</div>
+    <p class="sf-hint" style="margin-bottom:12px">These reset every year — enter your remaining balance whenever you start tracking or when your company renews them.</p>
+    <div class="settings-grid">
+      <div class="sf-group">
+        <label>Annual Leave</label>
+        <input type="number" id="s_annualLeave" min="0">
+      </div>
+      <div class="sf-group">
+        <label>Casual Leave</label>
+        <input type="number" id="s_casualLeave" min="0">
+      </div>
+      <div class="sf-group full">
+        <label>Compensatory ("Badal") Leave</label>
+        <input type="number" id="s_compLeave" min="0">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="saveLeaveBalances()" style="margin-top:16px">Save Leave Balances</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🇪🇬 Egyptian Official Holidays</div>
+    <p class="sf-hint" style="margin-bottom:12px">Pre-loaded official holidays + every Friday counts automatically. Add, edit, or remove dates as needed — Islamic holiday dates shift every year.</p>
+    <div id="holidaysList" style="margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;margin-bottom:6px">
+      <input type="date" id="newHolidayDate" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px 12px;font-family:'Inter',sans-serif;font-size:.88rem">
+      <input type="text" id="newHolidayName" placeholder="Holiday name" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px 12px;font-family:'Inter',sans-serif;font-size:.88rem">
+    </div>
+    <button class="btn-secondary" style="width:100%" onclick="addHoliday()">➕ Add Holiday</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔒 App Password</div>
+    <p class="sf-hint" style="margin-bottom:12px">Change the password used to lock this app.</p>
+    <div class="settings-grid">
+      <div class="sf-group">
+        <label>New Password (4 digits)</label>
+        <input type="password" id="s_newPass" maxlength="4" inputmode="numeric" placeholder="0000">
+      </div>
+      <div class="sf-group">
+        <label>Confirm Password</label>
+        <input type="password" id="s_confirmPass" maxlength="4" inputmode="numeric" placeholder="0000">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="changePassword()" style="margin-top:16px">Change Password</button>
+    <button class="btn-secondary" style="width:100%;margin-top:10px" onclick="lockApp()">🔒 Lock App Now</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💾 Backup & Restore</div>
+    <p class="sf-hint" style="margin-bottom:12px">
+      Your data is only saved in this browser on this device — it's not backed up anywhere automatically. If you clear your browser data, switch browsers, or get a new phone, everything will be lost unless you back it up here first.
+    </p>
+    <button class="btn-export" onclick="exportBackup()" style="margin-bottom:10px">
+      ⬇️ Export Backup File
+    </button>
+    <p class="sf-hint" style="margin-bottom:10px">Save the downloaded file somewhere safe (Google Drive, email to yourself, etc). A reminder banner will appear on the Today page if it's been more than 7 days since your last backup.</p>
+    <div class="upload-zone-wrap" style="position:relative">
+      <button class="btn-export" style="width:100%" onclick="document.getElementById('backupFileInput').click()">
+        ⬆️ Restore From Backup File
+      </button>
+      <input type="file" id="backupFileInput" accept=".json" style="display:none" onchange="importBackup(event)">
+    </div>
+    <p class="sf-hint" style="margin-top:6px;color:var(--danger)">⚠️ Restoring will overwrite all current data on this device with the backup file's data.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🗑️ Data Management</div>
+    <button class="btn-export" onclick="recalcAll()" style="margin-bottom:10px">
+      🔄 Recalculate all saved days (fix old rounding)
+    </button>
+    <button class="btn-export" onclick="fixHolidayDeductions()" style="margin-bottom:10px">
+      🩹 Fix mistaken holiday balance deductions
+    </button>
+    <button class="btn-export" onclick="clearAll()" style="color:var(--danger);border-color:rgba(239,68,68,.3)">
+      Clear all saved data
+    </button>
+  </div>
+</div>
+
+<!-- EXPENSES PAGE -->
+<div class="page" id="page-expenses">
+  <div class="page-header">
+    <h2>Expenses</h2>
+    <p>Track your cash advance (custody) spending — work vs personal</p>
+  </div>
+
+  <div class="card" id="custodyCard">
+    <div class="card-title">💰 Cash Advance (Custody)</div>
+    <p class="sf-hint" style="margin-bottom:12px">
+      You hold a fixed cash advance from the company. You spend from it (work or personal), and periodically settle up — submitting your expenses to get reimbursed and bringing the custody back to its full amount.
+    </p>
+
+    <div class="sf-hint" style="margin-bottom:8px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;font-size:.72rem">Balance Breakdown</div>
+    <div class="stat-row" style="margin-bottom:10px">
+      <div class="stat-box blue">
+        <div class="sb-val" id="custodyTotalVal">0</div>
+        <div class="sb-label">Custody Amount</div>
+      </div>
+      <div class="stat-box orange">
+        <div class="sb-val" id="custodyWorkSpentVal">0</div>
+        <div class="sb-label">Total Work Expenses</div>
+      </div>
+      <div class="stat-box red">
+        <div class="sb-val" id="custodyPersonalVal">0</div>
+        <div class="sb-label">Total Personal Expenses</div>
+      </div>
+      <div class="stat-box purple">
+        <div class="sb-val" id="custodyShouldHaveVal">0</div>
+        <div class="sb-label">Should Have (custody − work only)</div>
+      </div>
+    </div>
+    <div class="sal-table" style="margin-bottom:10px">
+      <div class="sal-row total">
+        <span>💵 Actually Have (custody − work − personal)</span>
+        <span class="sal-val big" id="custodyActuallyHaveVal">0</span>
+      </div>
+    </div>
+
+    <div class="sf-hint" style="margin-bottom:8px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;font-size:.72rem">Who Owes Whom</div>
+    <div class="stat-row" style="margin-bottom:10px">
+      <div class="stat-box green">
+        <div class="sb-val" id="custodyOwedToYouVal">0</div>
+        <div class="sb-label">Company owes you</div>
+      </div>
+      <div class="stat-box red">
+        <div class="sb-val" id="custodyTotalOweStatVal">0</div>
+        <div class="sb-label">Total you owe company</div>
+      </div>
+    </div>
+    <div class="sal-table" style="margin-bottom:10px">
+      <div class="sal-row">
+        <span>↩️ Carried over from last settlement</span>
+        <span class="sal-val" style="color:var(--accent3)" id="custodyCarriedOweVal">0</span>
+      </div>
+      <div class="sal-row">
+        <span>🆕 New this period (after repayments)</span>
+        <span class="sal-val o" id="custodyNewOweVal">0</span>
+      </div>
+      <div class="sal-row total">
+        <span>= Total Owed</span>
+        <span class="sal-val big" id="custodyTotalOweVal">0</span>
+      </div>
+    </div>
+
+    <div id="custodyExplain" style="font-size:.78rem;color:var(--muted);line-height:1.5;margin-bottom:10px"></div>
+    <div style="display:flex;gap:10px;margin-bottom:10px">
+      <button class="btn-secondary" style="flex:1" onclick="openCustodyEdit()">Set Custody Amount</button>
+      <button class="btn-secondary" style="flex:1" onclick="openRepayModal()">💸 I repaid some</button>
+    </div>
+    <button class="btn-primary" style="margin-top:0" onclick="openSettleModal()">✅ Settle Now (close this period)</button>
+  </div>
+
+  <div class="card" id="repaymentHistoryCard" style="display:none">
+    <div class="card-title">💸 Repayment History (current period)</div>
+    <div class="log-list" id="repaymentHistoryList"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">➕ Log an Expense</div>
+    <div class="settings-grid" style="margin-bottom:12px">
+      <div class="sf-group full">
+        <label>Date</label>
+        <input type="date" id="expDate">
+      </div>
+      <div class="sf-group full">
+        <label>Amount</label>
+        <input type="number" id="expAmount" placeholder="e.g. 150" min="0" step="0.01">
+      </div>
+      <div class="sf-group full">
+        <label>Type</label>
+        <div style="display:flex;gap:10px">
+          <button class="btn-secondary" id="expTypeWorkBtn" style="flex:1" onclick="setExpType('work')">💼 Work</button>
+          <button class="btn-secondary" id="expTypePersonalBtn" style="flex:1" onclick="setExpType('personal')">🙋 Personal</button>
+        </div>
+      </div>
+      <div class="sf-group full">
+        <label>Description</label>
+        <input type="text" id="expDesc" placeholder="e.g. Taxi to client site">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="saveExpense()">💾 Save Expense</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 Current Period Expense Log</div>
+    <p class="sf-hint" style="margin-bottom:10px">Everything logged since your last settlement. Once you settle, this list clears and moves to the Settled tab.</p>
+    <div class="log-list" id="expLogList"></div>
+  </div>
+
+  <button class="btn-export" onclick="exportExpensesExcel()">⬇️ Export Current Period to Excel</button>
+</div>
+
+<!-- SETTLED EXPENSES PAGE -->
+<div class="page" id="page-settled">
+  <div class="page-header">
+    <h2>Settled Expenses</h2>
+    <p>Browse past settlement periods by the month they were settled in</p>
+  </div>
+
+  <div class="month-nav">
+    <button class="mn-btn" onclick="chSettledMonth(-1)">‹</button>
+    <div class="mn-label" id="settledMonthLbl">—</div>
+    <button class="mn-btn" onclick="chSettledMonth(1)">›</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📁 Settlements This Month</div>
+    <p class="sf-hint" style="margin-bottom:10px">Grouped by the date you settled — not the date of the expenses themselves. Tap a settlement to see its expenses.</p>
+    <div class="log-list" id="settledListForMonth"></div>
+  </div>
+
+  <div class="card" id="settledTotalCard">
+    <div class="card-title">📊 Total Expense Log (all-time)</div>
+    <div class="stat-row" style="margin-bottom:10px">
+      <div class="stat-box orange"><div class="sb-val" id="totalAllWorkVal">0</div><div class="sb-label">Total Work (all-time)</div></div>
+      <div class="stat-box purple"><div class="sb-val" id="totalAllPersonalVal">0</div><div class="sb-label">Total Personal (all-time)</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAST WORK HOURS PAGE -->
+<div class="page" id="page-pasthours">
+  <div class="page-header">
+    <h2>Past Work Hours</h2>
+    <p>Browse attendance reports for any previous month</p>
+  </div>
+
+  <div class="month-nav">
+    <button class="mn-btn" onclick="chPastHoursMonth(-1)">‹</button>
+    <div class="mn-label" id="pastHoursMonthLbl">—</div>
+    <button class="mn-btn" onclick="chPastHoursMonth(1)">›</button>
+  </div>
+
+  <div id="pastHoursContent"></div>
+</div>
+
+<!-- CUSTODY EDIT MODAL -->
+<div class="setup-overlay" id="custodyOverlay" style="display:none">
+  <div class="setup-box">
+    <h2>💰 Cash Advance (Custody)</h2>
+    <p>Set the total custody amount you've received from the company. You can top it up any time you receive more.</p>
+    <div class="sf-group full" style="margin-bottom:14px">
+      <label>Add amount</label>
+      <input type="number" id="custodyAddInp" placeholder="e.g. 2000" min="0" step="0.01">
+      <span class="sf-hint">This adds to your current custody total. To reduce or reset, use "Set total" instead.</span>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:10px">
+      <button class="btn-primary" style="margin-top:0" onclick="addCustody()">➕ Add to custody</button>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <div class="sf-group full" style="margin-bottom:14px">
+      <label>Or set the exact total</label>
+      <input type="number" id="custodySetInp" placeholder="Current total" min="0" step="0.01">
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-secondary" style="flex:1" onclick="closeCustodyEdit()">Cancel</button>
+      <button class="btn-primary" style="flex:2;margin-top:0" onclick="setCustodyTotal()">Set total</button>
+    </div>
+  </div>
+</div>
+
+<!-- REPAY MODAL -->
+<div class="setup-overlay" id="repayOverlay" style="display:none">
+  <div class="setup-box">
+    <h2>💸 Repay Custody</h2>
+    <p>Use this when you pay back money you owe the company (e.g. you spent custody on something personal and now you're returning the cash). This adds the amount back to your custody balance.</p>
+    <div class="sf-group full" style="margin-bottom:14px">
+      <label>Date</label>
+      <input type="date" id="repayDateInp">
+    </div>
+    <div class="sf-group full" style="margin-bottom:14px">
+      <label>Amount repaid</label>
+      <input type="number" id="repayAmountInp" placeholder="e.g. 100" min="0" step="0.01">
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-secondary" style="flex:1" onclick="closeRepayModal()">Cancel</button>
+      <button class="btn-primary" style="flex:2;margin-top:0" onclick="confirmRepay()">✓ Confirm Repayment</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT EXPENSE MODAL -->
+<div class="setup-overlay" id="editExpenseOverlay" style="display:none">
+  <div class="setup-box">
+    <h2>✏️ Edit Expense</h2>
+    <div class="settings-grid" style="margin-bottom:14px">
+      <div class="sf-group full">
+        <label>Date</label>
+        <input type="date" id="editExpDate">
+      </div>
+      <div class="sf-group full">
+        <label>Amount</label>
+        <input type="number" id="editExpAmount" min="0" step="0.01">
+      </div>
+      <div class="sf-group full">
+        <label>Type</label>
+        <div style="display:flex;gap:10px">
+          <button class="btn-secondary" id="editExpTypeWorkBtn" style="flex:1" onclick="setEditExpType('work')">💼 Work</button>
+          <button class="btn-secondary" id="editExpTypePersonalBtn" style="flex:1" onclick="setEditExpType('personal')">🙋 Personal</button>
+        </div>
+      </div>
+      <div class="sf-group full">
+        <label>Description</label>
+        <input type="text" id="editExpDesc" placeholder="e.g. Taxi to client site">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-secondary" style="flex:1" onclick="closeEditExpense()">Cancel</button>
+      <button class="btn-primary" style="flex:2;margin-top:0" onclick="saveEditExpense()">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTLE NOW MODAL -->
+<div class="setup-overlay" id="settleOverlay" style="display:none">
+  <div class="setup-box">
+    <h2>✅ Settle Custody Period</h2>
+    <p>This closes out all expenses logged since your last settlement, archives them as a settled period, and resets your custody back to its full amount — as if you just received a fresh advance.</p>
+    <div class="alert-box" id="settlePreview" style="margin-bottom:14px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-secondary" style="flex:1" onclick="closeSettleModal()">Cancel</button>
+      <button class="btn-primary" style="flex:2;margin-top:0" onclick="confirmSettle()">✓ Confirm Settlement</button>
+    </div>
+  </div>
+</div>
+
+<!-- HOLIDAY WORKED QUESTION MODAL -->
+<div class="setup-overlay" id="holidayQOverlay" style="display:none">
+  <div class="setup-box">
+    <h2>🇪🇬 Official Holiday Detected</h2>
+    <p>This date is <b id="holidayQName" style="color:var(--accent3)"></b>.<br><br>
+    Does your company count this as a holiday for you? (Some companies don't grant every official holiday off.)</p>
+    <div style="display:flex;gap:10px">
+      <button class="btn-secondary" style="flex:1" onclick="answerHolidayQuestion(false)">No — normal work day</button>
+      <button class="btn-primary" style="flex:1;margin-top:0" onclick="answerHolidayQuestion(true)">Yes — I worked a holiday</button>
+    </div>
+  </div>
+</div>
+
+<!-- BULK ENTRY MODAL -->
+<div class="setup-overlay" id="bulkOverlay" style="display:none">
+  <div class="setup-box" style="max-width:560px;max-height:88vh;overflow-y:auto">
+    <h2>📋 Bulk Month Entry</h2>
+    <p>Write each day on its own line as: <b>day, check-in, check-out</b><br>
+    Use <b>off</b> instead of times for a day off.<br>
+    Separate with a comma, space, or tab.</p>
+
+    <div class="sf-group full" style="margin-bottom:10px">
+      <label>Month & Year</label>
+      <div style="display:flex;gap:10px">
+        <select id="bulkMonthSel" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 13px;font-family:'Inter',sans-serif;font-size:.93rem"></select>
+        <input type="number" id="bulkYearInp" style="width:100px;background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 13px;font-family:'Inter',sans-serif;font-size:.93rem">
+      </div>
+    </div>
+
+    <textarea id="bulkText" rows="10" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:12px 13px;font-family:'Inter',sans-serif;font-size:.85rem;resize:vertical;margin-bottom:10px" placeholder="1, 08:00, 17:00
+2, 08:15, 18:30
+3, off
+4, 08:00, 17:00
+..."></textarea>
+
+    <div class="alert-box" id="bulkPreviewBox" style="display:none;margin-bottom:12px"></div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn-secondary" style="flex:1" onclick="closeBulkEntry()">Cancel</button>
+      <button class="btn-primary" style="flex:2;margin-top:0" onclick="parseBulkEntry()">Preview & Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- MULTI-DAY SHIFT MODAL -->
+<div class="setup-overlay" id="multiDayOverlay" style="display:none">
+  <div class="setup-box" style="max-width:560px;max-height:88vh;overflow-y:auto">
+    <h2>🌙 Multi-Day Shift</h2>
+    <p>For a continuous shift with no real break between calendar days (e.g. an on-site posting).
+    The hours will be automatically split across the days it spans — 24h for each full day in between,
+    and the remainder on the start/end days — and marked as part of one continuous shift.</p>
+
+    <div class="settings-grid" style="margin-bottom:12px">
+      <div class="sf-group full">
+        <label>Check-in (date & time)</label>
+        <input type="datetime-local" id="mdCheckinInp" style="background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 13px;font-family:'Inter',sans-serif;font-size:.93rem;width:100%">
+      </div>
+      <div class="sf-group full">
+        <label>Check-out (date & time)</label>
+        <input type="datetime-local" id="mdCheckoutInp" style="background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 13px;font-family:'Inter',sans-serif;font-size:.93rem;width:100%">
+      </div>
+      <div class="sf-group full">
+        <label>Note (optional)</label>
+        <input type="text" id="mdNoteInp" placeholder="e.g. On-site posting at client X">
+      </div>
+    </div>
+
+    <div class="alert-box" id="mdPreviewBox" style="display:none;margin-bottom:12px"></div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn-secondary" style="flex:1" onclick="closeMultiDayShift()">Cancel</button>
+      <button class="btn-primary" style="flex:2;margin-top:0" onclick="saveMultiDayShift()">Preview & Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT DAY MODAL -->
+<div class="setup-overlay" id="editDayOverlay" style="display:none">
+  <div class="setup-box">
+    <h2 id="editDayTitle">✏️ Edit Day</h2>
+    <p id="editDaySubtitle" style="margin-bottom:14px">—</p>
+
+    <div class="time-inputs">
+      <div class="inp-group">
+        <label>Check-in</label>
+        <div class="time-wrap">
+          <span class="time-icon">🟢</span>
+          <input type="time" id="editAttendInp" oninput="editLiveCalc()">
+        </div>
+      </div>
+      <div class="inp-group">
+        <label>Check-out</label>
+        <div class="time-wrap">
+          <span class="time-icon">🔴</span>
+          <input type="time" id="editLeaveInp" oninput="editLiveCalc()">
+        </div>
+      </div>
+    </div>
+
+    <div class="live-preview" id="editLivePreview" style="display:none">
+      <div class="live-chip">
+        <div class="lc-label">Work Hours</div>
+        <div class="lc-val work" id="editLiveWork">—</div>
+      </div>
+      <div class="live-chip">
+        <div class="lc-label">Overtime</div>
+        <div class="lc-val ot" id="editLiveOT">—</div>
+      </div>
+    </div>
+
+    <div class="off-toggle" id="editOffToggle" onclick="toggleEditOff()">
+      <div class="tog-sw"></div>
+      <span>Day off / Absent</span>
+    </div>
+
+    <div class="sf-group full" id="editLeaveTypeWrap" style="display:none;margin-bottom:12px">
+      <label>Leave Type — which balance should this use?</label>
+      <select id="editLeaveTypeSel" style="background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 13px;font-family:'Inter',sans-serif;font-size:.93rem;width:100%">
+        <option value="paid">Paid Holiday (Friday / official — no balance used)</option>
+        <option value="annual">Annual Leave</option>
+        <option value="casual">Casual Leave</option>
+        <option value="comp">Compensatory ("Badal") Leave</option>
+        <option value="unpaid">Unpaid (not from any balance)</option>
+      </select>
+    </div>
+
+    <textarea class="note-input" id="editNoteInp" rows="2" placeholder="Optional note..."></textarea>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn-secondary" onclick="closeEditDay()">Cancel</button>
+      <button class="btn-primary" style="margin-top:0;flex:2" onclick="saveEditDay()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ─────────────────────────────────────────────────────
+const SK = 'wt_v5';
+
+// Default Egyptian official holidays. Islamic-calendar holidays shift every year —
+// edit these in Settings as official dates are announced.
+const DEFAULT_HOLIDAYS = [
+  {date:'2026-01-07', name:"Coptic Christmas"},
+  {date:'2026-01-25', name:"Revolution Day (Jan 25)"},
+  {date:'2026-02-18', name:"Ramadan begins (reduced hours, tentative)"},
+  {date:'2026-03-20', name:"Eid al-Fitr (tentative)"},
+  {date:'2026-03-21', name:"Eid al-Fitr (tentative)"},
+  {date:'2026-03-22', name:"Eid al-Fitr (tentative)"},
+  {date:'2026-04-25', name:"Sinai Liberation Day"},
+  {date:'2026-05-01', name:"Labour Day"},
+  {date:'2026-05-26', name:"Arafat Day (tentative)"},
+  {date:'2026-05-27', name:"Eid al-Adha (tentative)"},
+  {date:'2026-05-28', name:"Eid al-Adha (tentative)"},
+  {date:'2026-05-29', name:"Eid al-Adha (tentative)"},
+  {date:'2026-06-17', name:"Islamic New Year (tentative)"},
+  {date:'2026-07-23', name:"Revolution Day (Jul 23)"},
+  {date:'2026-08-25', name:"Prophet's Birthday (tentative)"},
+  {date:'2026-10-06', name:"Armed Forces Day"},
+  {date:'2026-10-09', name:"October War Victory Day"},
+];
+
+function load() {
+  try {
+    const r=localStorage.getItem(SK);
+    if(r) return JSON.parse(r);
+    // Migrate from previous storage version if present
+    const old=localStorage.getItem('wt_v4');
+    if(old){
+      const parsed=JSON.parse(old);
+      return {
+        settings: parsed.settings||null,
+        logs: parsed.logs||{},
+        cutoffs: parsed.cutoffs||{},
+        expenses: parsed.expenses||{},
+        custody: parsed.custody||0,
+        manualCarryIn: parsed.manualCarryIn||{},
+        repayments: parsed.repayments||[],
+        leaveBalances: {annual:0, casual:0, comp:0},
+        holidays: DEFAULT_HOLIDAYS.slice(),
+        password: '0000',
+        settlements: [],
+        lastSettlementDate: null
+      };
+    }
+  } catch(e){}
+  return {
+    settings:null, logs:{}, cutoffs:{}, expenses:{}, custody:0, manualCarryIn:{}, repayments:[],
+    leaveBalances:{annual:0, casual:0, comp:0},
+    holidays: DEFAULT_HOLIDAYS.slice(),
+    password:'0000',
+    settlements: [],
+    lastSettlementDate: null
+  };
+}
+function persist() { localStorage.setItem(SK, JSON.stringify(app)); }
+
+let app = load();
+if(!app.cutoffs) app.cutoffs = {};
+if(!app.expenses) app.expenses = {};
+if(app.custody===undefined) app.custody = 0;
+if(!app.manualCarryIn) app.manualCarryIn = {};
+if(!app.repayments) app.repayments = [];
+// Migration: assign an id to any old repayment record that doesn't have one yet
+app.repayments.forEach((r,i)=>{
+  if(!r.id) r.id = 'repay_legacy_'+i+'_'+Date.now();
+});
+if(!app.leaveBalances) app.leaveBalances = {annual:0, casual:0, comp:0};
+if(!app.holidays) app.holidays = DEFAULT_HOLIDAYS.slice();
+if(!app.password) app.password = '0000';
+if(!app.settlements) app.settlements = [];
+if(app.lastSettlementDate===undefined) app.lastSettlementDate = null;
+if(app.lastSettlementTimestamp===undefined) app.lastSettlementTimestamp = null;
+if(app.lastBackupDate===undefined) app.lastBackupDate = null;
+if(app.carriedOverOwed===undefined) app.carriedOverOwed = 0;
+persist(); // save any migrations (e.g. legacy repayment ids) immediately
+
+function getSett() {
+  return app.settings || {salary:0,dailyH:8,wdays:6,otmult:1.5};
+}
+
+// ── CONST ────────────────────────────────────────────────────
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DAYS_S = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// ── UTILS ────────────────────────────────────────────────────
+function todayKey() {
+  const d=new Date();
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+}
+function dk(y,m,d) { return `${y}-${p2(m+1)}-${p2(d)}`; }
+function p2(n) { return String(n).padStart(2,'0'); }
+
+// Is this date an official holiday (incl. every Friday)?
+function isOfficialHoliday(y,m,d) {
+  const dow=new Date(y,m,d).getDay();
+  if(dow===5) return {isHoliday:true, name:'Friday (weekly holiday)'};
+  const key=dk(y,m,d);
+  const h=app.holidays.find(h=>h.date===key);
+  if(h) return {isHoliday:true, name:h.name};
+  return {isHoliday:false};
+}
+function cutoffKey(y,m) { return `${y}-${p2(m+1)}`; }
+
+function toMins(t) {
+  if(!t) return null;
+  const [h,m]=t.split(':').map(Number);
+  return h*60+m;
+}
+
+function fmtMins(mins) {
+  if(mins===null||mins===undefined||mins<0) return '—';
+  const h=Math.floor(mins/60), m=mins%60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+// Like fmtMins but properly displays negative values with a minus sign (used for overtime deficits).
+function fmtMinsSigned(mins) {
+  if(mins===null||mins===undefined) return '—';
+  const sign = mins<0 ? '-' : '';
+  const abs=Math.abs(mins);
+  const h=Math.floor(abs/60), m=abs%60;
+  return m ? `${sign}${h}h ${m}m` : `${sign}${h}h`;
+}
+
+// Full day = exactly dailyH hours, no rounding tolerance.
+function calcWork(attend,leave,dailyH) {
+  const am=toMins(attend), lm=toMins(leave);
+  if(am===null||lm===null) return {workedMins:0,otMins:0};
+  let worked=lm-am;
+  if(worked<0) worked+=1440;
+  const dailyMins=Math.round(dailyH*60);
+  const ot=Math.max(0,worked-dailyMins);
+  return {workedMins:worked, otMins:ot};
+}
+
+// ── SETUP ────────────────────────────────────────────────────
+function saveSetup() {
+  const sal=parseFloat(document.getElementById('su_salary').value);
+  if(!sal||sal<=0){showToast('Enter your base salary','error');return;}
+  app.settings={
+    salary:sal,
+    dailyH:parseFloat(document.getElementById('su_dailyH').value)||8,
+    wdays:parseInt(document.getElementById('su_wdays').value)||6,
+    otmult:parseFloat(document.getElementById('su_otmult').value)||1.5
+  };
+  app.leaveBalances={
+    annual: parseFloat(document.getElementById('su_annualLeave').value)||0,
+    casual: parseFloat(document.getElementById('su_casualLeave').value)||0,
+    comp: parseFloat(document.getElementById('su_compLeave').value)||0
+  };
+  persist();
+  document.getElementById('setupOverlay').style.display='none';
+  loadSettForm();
+  showToast('✓ Saved! Start logging your days','success');
+}
+
+// ── SETTINGS ─────────────────────────────────────────────────
+function loadSettForm() {
+  const s=getSett();
+  document.getElementById('s_salary').value=s.salary||'';
+  document.getElementById('s_dailyH').value=s.dailyH||8;
+  document.getElementById('s_wdays').value=s.wdays||6;
+  document.getElementById('s_otmult').value=s.otmult||1.5;
+
+  const lb=app.leaveBalances;
+  document.getElementById('s_annualLeave').value=lb.annual||0;
+  document.getElementById('s_casualLeave').value=lb.casual||0;
+  document.getElementById('s_compLeave').value=lb.comp||0;
+
+  renderHolidaysList();
+}
+
+function saveSettings() {
+  const sal=parseFloat(document.getElementById('s_salary').value);
+  if(!sal||sal<=0){showToast('Enter your base salary','error');return;}
+  app.settings={
+    salary:sal,
+    dailyH:parseFloat(document.getElementById('s_dailyH').value)||8,
+    wdays:parseInt(document.getElementById('s_wdays').value)||6,
+    otmult:parseFloat(document.getElementById('s_otmult').value)||1.5
+  };
+  persist();
+  showToast('✓ Settings saved','success');
+}
+
+function saveLeaveBalances() {
+  app.leaveBalances={
+    annual: parseFloat(document.getElementById('s_annualLeave').value)||0,
+    casual: parseFloat(document.getElementById('s_casualLeave').value)||0,
+    comp: parseFloat(document.getElementById('s_compLeave').value)||0
+  };
+  persist();
+  showToast('✓ Leave balances saved','success');
+}
+
+// ── HOLIDAYS MANAGEMENT ─────────────────────────────────────────
+function renderHolidaysList() {
+  const sorted=app.holidays.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  if(!sorted.length){
+    document.getElementById('holidaysList').innerHTML=`<div class="sf-hint">No holidays added yet.</div>`;
+    return;
+  }
+  document.getElementById('holidaysList').innerHTML=sorted.map(h=>{
+    const dateDisp=h.date.split('-').reverse().join('/');
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:.85rem">
+      <div><b>${dateDisp}</b> — ${h.name}</div>
+      <button class="log-del" onclick="removeHoliday('${h.date}')" title="Remove">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function addHoliday() {
+  const date=document.getElementById('newHolidayDate').value;
+  const name=document.getElementById('newHolidayName').value.trim();
+  if(!date){showToast('Pick a date','error');return;}
+  if(!name){showToast('Enter a holiday name','error');return;}
+  app.holidays = app.holidays.filter(h=>h.date!==date);
+  app.holidays.push({date,name});
+  persist();
+  document.getElementById('newHolidayDate').value='';
+  document.getElementById('newHolidayName').value='';
+  renderHolidaysList();
+  showToast('✓ Holiday added','success');
+}
+
+function removeHoliday(date) {
+  app.holidays = app.holidays.filter(h=>h.date!==date);
+  persist();
+  renderHolidaysList();
+  showToast('Holiday removed','success');
+}
+
+// ── PASSWORD ──────────────────────────────────────────────────
+function changePassword() {
+  const p1=document.getElementById('s_newPass').value.trim();
+  const p2v=document.getElementById('s_confirmPass').value.trim();
+  if(!/^\d{4}$/.test(p1)){showToast('Password must be exactly 4 digits','error');return;}
+  if(p1!==p2v){showToast('Passwords do not match','error');return;}
+  app.password=p1;
+  persist();
+  document.getElementById('s_newPass').value='';
+  document.getElementById('s_confirmPass').value='';
+  showToast('✓ Password changed','success');
+}
+
+function checkLockPassword() {
+  const entered=document.getElementById('lockPassInp').value.trim();
+  if(entered===app.password){
+    document.getElementById('lockOverlay').style.display='none';
+  } else {
+    document.getElementById('lockError').style.display='block';
+    document.getElementById('lockPassInp').value='';
+  }
+}
+
+function recalcAll() {
+  if(!confirm('This will re-calculate work hours and overtime for every saved day using the current daily-hours setting (exactly, no rounding). Continue?')) return;
+  const s=getSett();
+  let count=0;
+  for(const key in app.logs){
+    const e=app.logs[key];
+    if(e.isOff) continue;
+    if(!e.attend||!e.leave) continue;
+    const r=calcWork(e.attend,e.leave,s.dailyH);
+    e.workedMins=r.workedMins;
+    e.otMins=r.otMins;
+    count++;
+  }
+  persist();
+  initToday();
+  showToast(`✓ Recalculated ${count} day(s)`,'success');
+}
+
+// Fixes a past bug: days off on a Friday/official holiday were sometimes wrongly
+// deducted from an annual/casual/comp balance. This finds those days, restores
+// the wrongly-deducted balance, and relabels them as Paid Holiday.
+function fixHolidayDeductions() {
+  let fixedCount=0;
+  let restoredByType={annual:0, casual:0, comp:0};
+
+  for(const key in app.logs){
+    const e=app.logs[key];
+    if(!e.isOff) continue;
+    if(e.leaveType==='paid' || e.leaveType==='unpaid') continue;
+    if(!e.leaveType) continue; // nothing to fix
+
+    const [y,m,d]=key.split('-').map(Number);
+    const info=isOfficialHoliday(y, m-1, d);
+    if(!info.isHoliday) continue;
+
+    const balField = e.leaveType==='annual' ? 'annual' : e.leaveType==='casual' ? 'casual' : e.leaveType==='comp' ? 'comp' : null;
+    if(balField){
+      app.leaveBalances[balField] = (app.leaveBalances[balField]||0) + 1;
+      restoredByType[balField]++;
+    }
+    e.leaveType='paid';
+    fixedCount++;
+  }
+
+  persist();
+  renderLeaveBalances();
+  if(fixedCount===0){
+    showToast('No mistaken holiday deductions found','success');
+  } else {
+    showToast(`✓ Fixed ${fixedCount} day(s) — restored: ${restoredByType.annual} annual, ${restoredByType.casual} casual, ${restoredByType.comp} comp`,'success');
+  }
+}
+
+function clearAll() {
+  if(!confirm('This will erase all saved data. Are you sure?')) return;
+  localStorage.removeItem(SK);
+  showToast('Data cleared','success');
+  setTimeout(()=>location.reload(),700);
+}
+
+// ── BACKUP & RESTORE ──────────────────────────────────────────
+// ── WEEKLY BACKUP REMINDER ──────────────────────────────────────
+function checkBackupReminder() {
+  const banner=document.getElementById('backupReminderBanner');
+  const textEl=document.getElementById('backupReminderText');
+
+  // Don't nag if there's no real data yet
+  if(Object.keys(app.logs).length===0){
+    banner.style.display='none';
+    return;
+  }
+
+  const daysSince = app.lastBackupDate
+    ? Math.floor((new Date(todayKey()) - new Date(app.lastBackupDate)) / 86400000)
+    : null;
+
+  if(app.lastBackupDate===null){
+    banner.style.display='flex';
+    textEl.innerHTML = `⚠️ <b>You've never backed up your data.</b> If you lose this browser's data, everything is gone. Back up now.`;
+  } else if(daysSince>=7){
+    banner.style.display='flex';
+    textEl.innerHTML = `⚠️ It's been <b>${daysSince} days</b> since your last backup (${app.lastBackupDate.split('-').reverse().join('/')}). Time for a fresh one.`;
+  } else {
+    banner.style.display='none';
+  }
+}
+
+function hideBackupReminder() {
+  document.getElementById('backupReminderBanner').style.display='none';
+}
+
+function exportBackup() {
+  try {
+    const dataStr = JSON.stringify(app, null, 2);
+    const blob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const now = new Date();
+    const stamp = `${now.getFullYear()}-${p2(now.getMonth()+1)}-${p2(now.getDate())}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `work-tracker-backup-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    app.lastBackupDate = todayKey();
+    persist();
+    hideBackupReminder();
+    showToast('✓ Backup file downloaded','success');
+  } catch(e) {
+    showToast('Backup failed: '+e.message,'error');
+  }
+}
+
+function importBackup(event) {
+  const file = event.target.files[0];
+  if(!file) return;
+
+  if(!confirm('This will overwrite ALL current data on this device with the backup file. Are you sure?')){
+    event.target.value='';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const restored = JSON.parse(e.target.result);
+      // Basic sanity check: a valid backup should at least have a logs object
+      if(typeof restored !== 'object' || restored===null || typeof restored.logs !== 'object'){
+        showToast('This file doesn\'t look like a valid backup','error');
+        return;
+      }
+      localStorage.setItem(SK, JSON.stringify(restored));
+      showToast('✓ Backup restored — reloading...','success');
+      setTimeout(()=>location.reload(), 900);
+    } catch(err) {
+      showToast('Could not read backup file: '+err.message,'error');
+    }
+  };
+  reader.onerror = () => showToast('Failed to read file','error');
+  reader.readAsText(file);
+  event.target.value='';
+}
+
+// ── TODAY ─────────────────────────────────────────────────────
+let isOff=false;
+
+function initToday() {
+  const now=new Date();
+  document.getElementById('todayDateTxt').textContent=`${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+  document.getElementById('todayDayTxt').textContent=DAYS[now.getDay()];
+  checkBackupReminder();
+  const entry=app.logs[todayKey()];
+  if(entry && (entry.isOff || (entry.attend && entry.leave))){
+    showSaved(entry);
+    updateQuickCard(entry);
+  } else if(entry && entry.attend && !entry.leave){
+    // checked in, awaiting checkout
+    resetForm();
+    document.getElementById('attendInp').value=entry.attend;
+    document.getElementById('noteInp').value=entry.note||'';
+    liveCalc();
+    updateQuickCard(entry);
+  } else {
+    resetForm();
+    updateQuickCard(null);
+  }
+}
+
+function updateQuickCard(entry) {
+  const statusEl=document.getElementById('quickStatus');
+  const inBtn=document.getElementById('quickCheckinBtn');
+  const outBtn=document.getElementById('quickCheckoutBtn');
+
+  if(entry && entry.attend && !entry.leave && !entry.isOff){
+    statusEl.innerHTML=`🟢 Checked in at <b>${entry.attend}</b> — waiting for check-out.`;
+    inBtn.style.display='none';
+    outBtn.style.display='block';
+  } else if(entry && entry.isOff){
+    statusEl.innerHTML=`🔴 Marked as day off.`;
+    inBtn.style.display='none';
+    outBtn.style.display='none';
+  } else if(entry && entry.attend && entry.leave){
+    statusEl.innerHTML=`✓ Day complete: ${entry.attend} → ${entry.leave}`;
+    inBtn.style.display='none';
+    outBtn.style.display='none';
+  } else {
+    statusEl.innerHTML=`Not checked in yet today.`;
+    inBtn.style.display='block';
+    outBtn.style.display='none';
+  }
+}
+
+function quickCheckin() {
+  const now=new Date();
+  const timeStr=`${p2(now.getHours())}:${p2(now.getMinutes())}`;
+  const key=todayKey();
+  const existing=app.logs[key]||{};
+  app.logs[key]={attend:timeStr, leave:existing.leave||'', isOff:false, note:existing.note||'', workedMins:0, otMins:0};
+  persist();
+  document.getElementById('attendInp').value=timeStr;
+  liveCalc();
+  updateQuickCard(app.logs[key]);
+  showToast(`✓ Checked in at ${timeStr}`,'success');
+}
+
+function quickCheckout() {
+  const now=new Date();
+  const timeStr=`${p2(now.getHours())}:${p2(now.getMinutes())}`;
+  const key=todayKey();
+  const existing=app.logs[key];
+  if(!existing || !existing.attend){showToast('Check in first','error');return;}
+  const s=getSett();
+  const r=calcWork(existing.attend, timeStr, s.dailyH);
+  app.logs[key]={attend:existing.attend, leave:timeStr, isOff:false, note:existing.note||'', workedMins:r.workedMins, otMins:r.otMins};
+  persist();
+  showSaved(app.logs[key]);
+  updateQuickCard(app.logs[key]);
+  showToast(`✓ Checked out at ${timeStr}`,'success');
+}
+
+function resetForm() {
+  document.getElementById('todayFormCard').style.display='block';
+  document.getElementById('todaySavedCard').style.display='none';
+  document.getElementById('todayBadge').style.display='none';
+  document.getElementById('attendInp').value='';
+  document.getElementById('leaveInp').value='';
+  document.getElementById('noteInp').value='';
+  document.getElementById('livePreview').style.display='none';
+  isOff=false; updateOffToggle();
+}
+
+function showSaved(entry) {
+  document.getElementById('todayFormCard').style.display='none';
+  document.getElementById('todaySavedCard').style.display='block';
+  document.getElementById('todayBadge').style.display='block';
+  let txt='';
+  if(entry.isOff) txt='🔴 Day off';
+  else {
+    txt=`🟢 ${entry.attend}  →  🔴 ${entry.leave}   |   ${fmtMins(entry.workedMins)}`;
+    if(entry.otMins>0) txt+=`  (+${fmtMins(entry.otMins)} OT)`;
+  }
+  document.getElementById('savedInfo').textContent=txt;
+}
+
+function editToday() {
+  const entry=app.logs[todayKey()];
+  document.getElementById('todayFormCard').style.display='block';
+  document.getElementById('todaySavedCard').style.display='none';
+  document.getElementById('todayBadge').style.display='none';
+  if(entry){
+    document.getElementById('attendInp').value=entry.attend||'';
+    document.getElementById('leaveInp').value=entry.leave||'';
+    document.getElementById('noteInp').value=entry.note||'';
+    isOff=entry.isOff||false;
+    updateOffToggle(); liveCalc();
+  }
+  updateQuickCard(entry);
+}
+
+function toggleOff() {
+  isOff=!isOff; updateOffToggle(); liveCalc();
+}
+
+function updateOffToggle() {
+  const tog=document.getElementById('offToggle');
+  const att=document.getElementById('attendInp');
+  const lv=document.getElementById('leaveInp');
+  const ltWrap=document.getElementById('leaveTypeWrap');
+  tog.classList.toggle('active',isOff);
+  att.disabled=isOff; att.style.opacity=isOff?'0.3':'1';
+  lv.disabled=isOff; lv.style.opacity=isOff?'0.3':'1';
+  ltWrap.style.display=isOff?'block':'none';
+  if(isOff){
+    autoSelectLeaveType(todayKey(), 'leaveTypeSel', 'leaveTypeAutoHint');
+  }
+}
+
+// Auto-pick "Paid Holiday" when the date is a Friday or a known official holiday,
+// so off-days on holidays never silently consume an annual/casual/comp balance.
+// If it's NOT a holiday, leaves the dropdown alone (defaults to whatever the browser shows, usually the first option).
+function autoSelectLeaveType(dateKey, selectId, hintId) {
+  const [y,m,d] = dateKey.split('-').map(Number);
+  const info = isOfficialHoliday(y, m-1, d);
+  const sel=document.getElementById(selectId);
+  const hint=hintId ? document.getElementById(hintId) : null;
+  if(info.isHoliday){
+    sel.value='paid';
+    if(hint){
+      hint.style.display='block';
+      hint.textContent=`📅 ${info.name} — auto-set to Paid Holiday, no balance deducted.`;
+    }
+  } else {
+    if(hint){ hint.style.display='none'; hint.textContent=''; }
+  }
+}
+
+function liveCalc() {
+  const s=getSett();
+  const a=document.getElementById('attendInp').value;
+  const l=document.getElementById('leaveInp').value;
+  const pr=document.getElementById('livePreview');
+  if(a&&l&&!isOff){
+    const {workedMins,otMins}=calcWork(a,l,s.dailyH);
+    document.getElementById('liveWork').textContent=fmtMins(workedMins);
+    document.getElementById('liveOT').textContent=otMins>0?fmtMins(otMins):'—';
+    pr.style.display='flex';
+  } else { pr.style.display='none'; }
+}
+
+function saveToday() {
+  saveDayGeneric(todayKey(), 'attendInp','leaveInp','noteInp', isOff, 'leaveTypeSel', (entry)=>{
+    showSaved(entry);
+    updateQuickCard(entry);
+  });
+}
+
+// Generic day-saving logic shared by Today form and Edit Day modal.
+// Handles: official holiday detection + the "did the company give this as a holiday?" question,
+// leave-balance deduction, and double-pay + comp-leave accrual for working an official holiday.
+function saveDayGeneric(key, attendId, leaveId, noteId, offFlag, leaveTypeId, onDone) {
+  const attend=document.getElementById(attendId).value;
+  const leave=document.getElementById(leaveId).value;
+  const note=document.getElementById(noteId).value.trim();
+  const s=getSett();
+
+  if(!offFlag && (!attend||!leave)){showToast('Enter check-in and check-out times','error');return;}
+
+  const [y,m,d] = key.split('-').map(Number); // m is 1-indexed here
+  const holidayInfo = isOfficialHoliday(y, m-1, d);
+
+  if(offFlag){
+    const leaveType=document.getElementById(leaveTypeId).value;
+    const balanceDeductingTypes={annual:'annual', casual:'casual', comp:'comp'};
+    if(balanceDeductingTypes[leaveType]){
+      const balField = balanceDeductingTypes[leaveType];
+      const current = app.leaveBalances[balField]||0;
+      if(current<=0){
+        if(!confirm(`Your ${balField} leave balance is 0 or negative. Save this day off anyway? (balance will go negative)`)) return;
+      }
+      app.leaveBalances[balField] = current - 1;
+    }
+    // 'paid' (Friday/official holiday) and 'unpaid' never touch any leave balance.
+    const entry={attend:'',leave:'',isOff:true,leaveType,note,workedMins:0,otMins:0};
+    app.logs[key]=entry;
+    persist();
+    showToast('✓ Day off saved','success');
+    onDone(entry);
+    return;
+  }
+
+  // Worked day — check if it's an official holiday and the company doesn't normally give it off.
+  if(holidayInfo.isHoliday){
+    askHolidayWorkedQuestion(holidayInfo.name, (companyCountsAsHoliday)=>{
+      const r=calcWork(attend,leave,s.dailyH);
+      let entry;
+      if(companyCountsAsHoliday){
+        // Worked an official holiday the company doesn't grant off: double pay for hours worked, +1 comp leave day.
+        entry={attend,leave,isOff:false,note,workedMins:r.workedMins,otMins:r.otMins,
+               holidayWorked:true, holidayName:holidayInfo.name, doublePay:true};
+        app.leaveBalances.comp = (app.leaveBalances.comp||0) + 1;
+        showToast(`✓ Saved — counted as ${holidayInfo.name}, hours doubled, +1 comp leave day`,'success');
+      } else {
+        // Company doesn't treat this as a holiday for the employee — normal day.
+        entry={attend,leave,isOff:false,note,workedMins:r.workedMins,otMins:r.otMins};
+        showToast('✓ Day saved as a normal working day','success');
+      }
+      app.logs[key]=entry;
+      persist();
+      onDone(entry);
+    });
+    return;
+  }
+
+  const r=calcWork(attend,leave,s.dailyH);
+  const entry={attend,leave,isOff:false,note,workedMins:r.workedMins,otMins:r.otMins};
+  app.logs[key]=entry;
+  persist();
+  showToast('✓ Day saved','success');
+  onDone(entry);
+}
+
+// ── HOLIDAY-WORKED QUESTION MODAL ───────────────────────────────
+let holidayQuestionCallback=null;
+
+function askHolidayWorkedQuestion(holidayName, callback) {
+  holidayQuestionCallback=callback;
+  document.getElementById('holidayQName').textContent=holidayName;
+  document.getElementById('holidayQOverlay').style.display='flex';
+}
+
+function answerHolidayQuestion(isCompanyHoliday) {
+  document.getElementById('holidayQOverlay').style.display='none';
+  if(holidayQuestionCallback) holidayQuestionCallback(isCompanyHoliday);
+  holidayQuestionCallback=null;
+}
+
+// ── LOG ───────────────────────────────────────────────────────
+let logY, logM;
+
+function initLog() {
+  const now=new Date();
+  if(!logY){logY=now.getFullYear();logM=now.getMonth();}
+  renderLog();
+}
+
+function chLogMonth(d) {
+  logM+=d;
+  if(logM<0){logM=11;logY--;} if(logM>11){logM=0;logY++;}
+  renderLog();
+}
+
+function renderLog() {
+  document.getElementById('logMonthLbl').textContent=`${MONTHS[logM]} ${logY}`;
+  renderMiniCal(); renderLogList();
+}
+
+function renderMiniCal() {
+  const dim=new Date(logY,logM+1,0).getDate();
+  const fd=new Date(logY,logM,1).getDay();
+  const tk=todayKey(); const now=new Date();
+  const cutoff=app.cutoffs[cutoffKey(logY,logM)];
+  let h=DAYS_S.map(d=>`<div class="cal-hdr">${d}</div>`).join('');
+  for(let i=0;i<fd;i++) h+=`<div class="cal-day empty"></div>`;
+  for(let d=1;d<=dim;d++){
+    const key=dk(logY,logM,d);
+    const e=app.logs[key];
+    const isToday=key===tk;
+    const fut=new Date(logY,logM,d)>now;
+    let cls='cal-day';
+    if(isToday) cls+=' today-mark';
+    if(fut) cls+=' future';
+    else if(e){ cls+=e.isOff?' has-off':e.otMins>0?' has-ot':' has-work'; }
+    if(cutoff && d>cutoff) cls+=' past-cutoff';
+    h+=`<div class="${cls}" style="cursor:pointer" onclick="openEditDay(${logY},${logM},${d})">${d}</div>`;
+  }
+  document.getElementById('miniCal').innerHTML=h;
+}
+
+function renderLogList() {
+  const dim=new Date(logY,logM+1,0).getDate();
+  const cutoff=app.cutoffs[cutoffKey(logY,logM)];
+  let items=[];
+  for(let d=dim;d>=1;d--){
+    const key=dk(logY,logM,d);
+    const e=app.logs[key];
+    if(e) items.push({d,key,e});
+  }
+  if(!items.length){
+    document.getElementById('logList').innerHTML=`<div class="empty-state"><div class="es-icon">📭</div><p>No entries logged this month</p></div>`;
+    return;
+  }
+  document.getElementById('logList').innerHTML=items.map(({d,key,e})=>{
+    const dn=DAYS[new Date(logY,logM,d).getDay()];
+    const cls=e.isOff?'loff':e.otMins>0?'lot':'lwork';
+    const leaveTypeLabel = e.leaveType==='paid'?'Paid Holiday':e.leaveType==='annual'?'Annual':e.leaveType==='casual'?'Casual':e.leaveType==='comp'?'Comp':e.leaveType==='unpaid'?'Unpaid':'Off';
+    const leaveTagClass = e.leaveType==='paid' ? 'tag-work' : 'tag-off';
+    const times=e.isOff?`<span class="tag ${leaveTagClass}">${leaveTypeLabel}</span>`:`${e.attend} → ${e.leave}`;
+    const hrs=e.isOff?'':`<div class="log-hw">${fmtMins(e.workedMins)}</div>${e.otMins>0?`<div class="log-hot">+${fmtMins(e.otMins)}</div>`:''}`;
+    const otTag=!e.isOff&&e.otMins>0?`<span class="tag tag-ot" style="margin-left:6px">OT</span>`:'';
+    const holidayTag=e.doublePay?`<span class="tag tag-carry" style="margin-left:6px">2× Holiday</span>`:'';
+    const multiDayTag=e.multiDayShift?`<span class="tag tag-carry" style="margin-left:6px">🌙 Multi-day</span>`:'';
+    const carryTag=(cutoff && d>cutoff && !e.isOff && e.otMins>0)?`<span class="tag tag-carry" style="margin-left:6px">Carries over</span>`:'';
+    return `<div class="log-item ${cls}" onclick="openEditDay(${logY},${logM},${d})">
+      <div class="log-num">${d}</div>
+      <div class="log-info">
+        <div class="log-times">${times} ${otTag} ${holidayTag} ${multiDayTag} ${carryTag}</div>
+        <div class="log-note">${dn}${e.note?' · '+e.note:''}</div>
+      </div>
+      <div class="log-hours">${hrs}</div>
+      <button class="log-del" onclick="event.stopPropagation();delEntry('${key}')" title="Delete">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function delEntry(key) {
+  if(!confirm('Delete this day?')) return;
+  delete app.logs[key]; persist(); renderLog();
+  showToast('Deleted','success');
+}
+
+// ── CUTOFF MANAGEMENT ───────────────────────────────────────────
+function toggleCutoffEdit() {
+  const card=document.getElementById('cutoffEditCard');
+  const isHidden=card.style.display==='none';
+  card.style.display=isHidden?'block':'none';
+  if(isHidden){
+    const existing=app.cutoffs[cutoffKey(repY,repM)];
+    document.getElementById('cutoffDayInp').value=existing||'';
+  }
+}
+
+function saveCutoff() {
+  const day=parseInt(document.getElementById('cutoffDayInp').value);
+  const dim=new Date(repY,repM+1,0).getDate();
+  if(!day||day<1||day>=dim){showToast('Enter a valid cutoff day (before the last day of the month)','error');return;}
+  app.cutoffs[cutoffKey(repY,repM)]=day;
+  persist();
+  document.getElementById('cutoffEditCard').style.display='none';
+  renderReport();
+  showToast('✓ Cutoff day saved','success');
+}
+
+function clearCutoff() {
+  delete app.cutoffs[cutoffKey(repY,repM)];
+  persist();
+  document.getElementById('cutoffEditCard').style.display='none';
+  renderReport();
+  showToast('Cutoff cleared','success');
+}
+
+// ── REPORT ────────────────────────────────────────────────────
+let repY, repM;
+
+function initReport() {
+  const now=new Date();
+  if(!repY){repY=now.getFullYear();repM=now.getMonth();}
+  renderReport();
+}
+
+function chRepMonth(d) {
+  repM+=d;
+  if(repM<0){repM=11;repY--;} if(repM>11){repM=0;repY++;}
+  document.getElementById('cutoffEditCard').style.display='none';
+  renderReport();
+}
+
+function renderLeaveBalances() {
+  const lb=app.leaveBalances;
+  document.getElementById('balAnnualVal').textContent=lb.annual||0;
+  document.getElementById('balCasualVal').textContent=lb.casual||0;
+  document.getElementById('balCompVal').textContent=lb.comp||0;
+}
+
+function renderReport() {
+  document.getElementById('repMonthLbl').textContent=`${MONTHS[repM]} ${repY}`;
+  renderLeaveBalances();
+  const s=getSett();
+  const dim=new Date(repY,repM+1,0).getDate();
+  const cutoff=app.cutoffs[cutoffKey(repY,repM)];
+
+  // Carry-IN: overtime carried in from previous month's post-cutoff days (automatic)
+  // Uses the same aggregate logic: sum worked minutes across those days minus (days × dailyHours).
+  const prevM = repM===0 ? 11 : repM-1;
+  const prevY = repM===0 ? repY-1 : repY;
+  const prevCutoff = app.cutoffs[cutoffKey(prevY,prevM)];
+  let autoCarryInOT = 0;
+  if(prevCutoff){
+    const prevDim=new Date(prevY,prevM+1,0).getDate();
+    let prevTailDays=0, prevTailMins=0;
+    for(let d=prevCutoff+1; d<=prevDim; d++){
+      const e=app.logs[dk(prevY,prevM,d)];
+      if(e && !e.isOff){ prevTailDays++; prevTailMins+=e.workedMins||0; }
+    }
+    autoCarryInOT = prevTailMins - (prevTailDays*Math.round(s.dailyH*60));
+  }
+
+  // Carry-IN: manually entered overtime minutes for this month
+  const manualCarryInOT = app.manualCarryIn[cutoffKey(repY,repM)] || 0;
+  const carryInOT = autoCarryInOT + manualCarryInOT;
+
+  renderManualCarryDisplay();
+
+  // Current month stats (full month, for display)
+  let workDays=0, offDays=0, totalWork=0, totalOT=0;
+  let holidayExtraPay=0, holidayDaysWorked=0;
+  let unpaidDays=0;
+
+  // For the NEW aggregate overtime calculation we need separate totals for the
+  // "payable" portion (before/at cutoff, or whole month if no cutoff) and the
+  // "carry-out" portion (after cutoff), each compared against its own (days × dailyHours) baseline.
+  let payableWorkDays=0, payableWorkedMins=0;
+  let carryOutWorkDays=0, carryOutWorkedMins=0;
+
+  for(let d=1;d<=dim;d++){
+    const e=app.logs[dk(repY,repM,d)];
+    if(!e) continue;
+    if(e.isOff){
+      offDays++;
+      if(e.leaveType==='unpaid') unpaidDays++;
+      continue;
+    }
+    // Skip days that are checked in but not checked out yet — they have no real hours to count
+    // until check-out happens, and counting them as a "full day" with 0 minutes would wrongly
+    // create a -8h deficit in the aggregate overtime calculation.
+    if(e.attend && !e.leave) continue;
+
+    workDays++; totalWork+=e.workedMins||0; totalOT+=e.otMins||0;
+
+    if(cutoff && d>cutoff){
+      carryOutWorkDays++;
+      carryOutWorkedMins += e.workedMins||0;
+    } else {
+      payableWorkDays++;
+      payableWorkedMins += e.workedMins||0;
+    }
+
+    if(e.doublePay){
+      holidayDaysWorked++;
+      // Extra pay = one additional payment for the hours worked that day (making it double total).
+      holidayExtraPay += (e.workedMins||0);
+    }
+  }
+
+  // NEW aggregate overtime logic: sum actual worked hours across all days in the period,
+  // compare against (days worked × daily hours). The difference is the real overtime —
+  // a short day no longer "wastes" its shortfall; it's absorbed by a long day elsewhere.
+  // If the total falls short of the expected baseline, this shows as a negative figure
+  // (a deficit) rather than being floored at zero or deducted from pay.
+  const dailyMins = Math.round(s.dailyH*60);
+  const payableOT = payableWorkedMins - (payableWorkDays*dailyMins);
+  const carryOutOT = carryOutWorkedMins - (carryOutWorkDays*dailyMins);
+
+  // Overtime PAYABLE this month = OT earned before cutoff (or all OT if no cutoff) + OT carried IN from last month (auto + manual)
+  const totalPayableOT = payableOT + carryInOT;
+  // For actual pay, a deficit (negative total) earns no overtime pay but never reduces the base salary either —
+  // only the positive portion is paid out.
+  const payableOTForPay = Math.max(0, totalPayableOT);
+
+  if(workDays+offDays===0 && carryInOT===0){
+    document.getElementById('reportContent').innerHTML=`<div class="empty-state"><div class="es-icon">📊</div><p>No data for this month yet</p></div>`;
+    updateCutoffBanner(cutoff, prevCutoff, carryInOT, carryOutOT);
+    return;
+  }
+
+  const wdm=Math.round((dim/7)*s.wdays);
+  const hr=s.salary/(wdm*s.dailyH);
+  const othr=hr*s.otmult;
+  const otPay=(payableOTForPay/60)*othr;
+  const holidayPay=(holidayExtraPay/60)*hr;
+  const dayRate=s.salary/wdm;
+  const unpaidDeduction=unpaidDays*dayRate;
+  const total=s.salary+otPay+holidayPay-unpaidDeduction;
+
+  let carryRows='';
+  if(autoCarryInOT>0){
+    carryRows+=`<div class="sal-row"><span>Carried-in OT from ${MONTHS[prevM]} (after cutoff day ${prevCutoff})</span><span class="sal-val p">+${fmtMins(autoCarryInOT)}</span></div>`;
+  }
+  if(manualCarryInOT>0){
+    carryRows+=`<div class="sal-row"><span>Manually entered carried-in OT</span><span class="sal-val p">+${fmtMins(manualCarryInOT)}</span></div>`;
+  }
+  if(carryOutOT>0){
+    carryRows+=`<div class="sal-row"><span>OT after this month's cutoff (day ${cutoff}) — carries to ${MONTHS[(repM+1)%12]}</span><span class="sal-val p">${fmtMins(carryOutOT)}</span></div>`;
+  }
+  let holidayRow='';
+  if(holidayDaysWorked>0){
+    holidayRow=`<div class="sal-row"><span>Worked ${holidayDaysWorked} official holiday day(s) — double pay</span><span class="sal-val p">+${holidayPay.toLocaleString('en-US',{maximumFractionDigits:2})}</span></div>`;
+  }
+  let unpaidRow='';
+  if(unpaidDays>0){
+    unpaidRow=`<div class="sal-row"><span>Unpaid leave: ${unpaidDays} day(s) × ${dayRate.toLocaleString('en-US',{maximumFractionDigits:2})}/day</span><span class="sal-val" style="color:var(--danger)">-${unpaidDeduction.toLocaleString('en-US',{maximumFractionDigits:2})}</span></div>`;
+  }
+
+  // Real aggregate overtime for the whole month (for display in the stat box) = both periods combined.
+  const monthAggregateOT = payableOT + carryOutOT;
+
+  document.getElementById('reportContent').innerHTML=`
+    <div class="stat-row">
+      <div class="stat-box green"><div class="sb-val">${workDays}</div><div class="sb-label">Days Worked</div></div>
+      <div class="stat-box orange"><div class="sb-val" style="${monthAggregateOT<0?'color:var(--danger)':''}">${fmtMinsSigned(monthAggregateOT)}</div><div class="sb-label">Total OT (this month)</div></div>
+      <div class="stat-box blue"><div class="sb-val">${Math.floor(totalWork/60)}<span style="font-size:.9rem">h</span></div><div class="sb-label">Total Hours</div></div>
+      <div class="stat-box red"><div class="sb-val">${offDays}</div><div class="sb-label">Days Off${unpaidDays>0?` (${unpaidDays} unpaid)`:''}</div></div>
+    </div>
+    <div class="stat-row" style="grid-template-columns:1fr">
+      <div class="stat-box" style="border-color:rgba(160,174,192,.25)">
+        <div class="sb-val" style="color:var(--muted);font-size:1.3rem">${fmtMinsSigned(totalOT)}</div>
+        <div class="sb-label">Old method (daily-summed OT) — for comparison only, not used in pay</div>
+      </div>
+    </div>
+    <div class="sal-table">
+      <div class="sal-row"><span>Base Salary</span><span class="sal-val g">${s.salary.toLocaleString('en-US')}</span></div>
+      <div class="sal-row"><span>Hourly Rate</span><span class="sal-val b">${hr.toFixed(2)}/hr</span></div>
+      <div class="sal-row"><span>Day Rate</span><span class="sal-val b">${dayRate.toLocaleString('en-US',{maximumFractionDigits:2})}/day</span></div>
+      <div class="sal-row"><span>OT Hourly Rate (×${s.otmult})</span><span class="sal-val o">${othr.toFixed(2)}/hr</span></div>
+      <div class="sal-row"><span>Payable OT Hours (this payroll)${totalPayableOT<0?' <span style="color:var(--danger);font-size:.75rem">(deficit — not deducted)</span>':''}</span><span class="sal-val o" style="${totalPayableOT<0?'color:var(--danger)':''}">${fmtMinsSigned(totalPayableOT)}</span></div>
+      ${carryRows}
+      ${holidayRow}
+      ${unpaidRow}
+      <div class="sal-row"><span>Overtime Pay</span><span class="sal-val o">${otPay.toLocaleString('en-US',{maximumFractionDigits:2})}</span></div>
+      <div class="sal-row total"><span>💰 Total Pay</span><span class="sal-val big">${total.toLocaleString('en-US',{maximumFractionDigits:2})}</span></div>
+    </div>`;
+
+  updateCutoffBanner(cutoff, prevCutoff, carryInOT, carryOutOT);
+}
+
+function renderManualCarryDisplay() {
+  const key=cutoffKey(repY,repM);
+  const mins=app.manualCarryIn[key]||0;
+  const el=document.getElementById('manualCarryCurrent');
+  if(mins>0){
+    el.innerHTML=`Currently set: <b style="color:var(--accent3)">${fmtMins(mins)}</b> carried in for ${MONTHS[repM]}. <a href="#" onclick="clearManualCarry();return false" style="color:var(--danger);text-decoration:none">Remove</a>`;
+    document.getElementById('manualCarryHours').value=Math.floor(mins/60);
+    document.getElementById('manualCarryMins').value=mins%60;
+  } else {
+    el.innerHTML='';
+    document.getElementById('manualCarryHours').value='';
+    document.getElementById('manualCarryMins').value='';
+  }
+}
+
+function saveManualCarry() {
+  const h=parseFloat(document.getElementById('manualCarryHours').value)||0;
+  const m=parseFloat(document.getElementById('manualCarryMins').value)||0;
+  const totalMins=Math.round(h*60+m);
+  if(totalMins<=0){showToast('Enter a valid number of hours/minutes','error');return;}
+  app.manualCarryIn[cutoffKey(repY,repM)]=totalMins;
+  persist();
+  renderReport();
+  showToast(`✓ ${fmtMins(totalMins)} carry-in saved for ${MONTHS[repM]}`,'success');
+}
+
+function clearManualCarry() {
+  delete app.manualCarryIn[cutoffKey(repY,repM)];
+  persist();
+  renderReport();
+  showToast('Manual carry-in removed','success');
+}
+
+function updateCutoffBanner(cutoff, prevCutoff, carryInOT, carryOutOT) {
+  const txt=document.getElementById('cutoffText');
+  const btn=document.getElementById('cutoffEditBtn');
+  let msg='';
+  if(cutoff){
+    msg=`Payroll cutoff set to day <b>${cutoff}</b>. `;
+    if(carryOutOT>0) msg+=`Overtime after that (${fmtMins(carryOutOT)}) will be paid next month. `;
+    btn.textContent='Edit cutoff';
+  } else {
+    msg='No payroll cutoff set for this month — all overtime counts in this month\'s pay.';
+    btn.textContent='Set cutoff day';
+  }
+  if(carryInOT>0){
+    msg+=`<br><b>+${fmtMins(carryInOT)}</b> carried in from last month is included in this month's pay.`;
+  }
+  txt.innerHTML=msg;
+}
+
+// ── EXPORT ────────────────────────────────────────────────────
+function exportExcel() {
+  const dim=new Date(repY,repM+1,0).getDate();
+  const cutoff=app.cutoffs[cutoffKey(repY,repM)];
+  const rows=[['Day','Check-in','Check-out','Work Hours','Overtime','Carries to next month','Note','Status']];
+  for(let d=1;d<=dim;d++){
+    const e=app.logs[dk(repY,repM,d)];
+    if(!e) continue;
+    const carries = (cutoff && d>cutoff && !e.isOff && e.otMins>0) ? 'Yes' : '';
+    rows.push([d,e.attend||'',e.leave||'',
+      e.isOff?'':fmtMins(e.workedMins),
+      e.isOff?'':fmtMins(e.otMins),
+      carries,
+      e.note||'',
+      e.isOff?'Off':e.otMins>0?'Overtime':'Normal']);
+  }
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb,ws,`${MONTHS[repM]} ${repY}`);
+  XLSX.writeFile(wb,`Report_${MONTHS[repM]}_${repY}.xlsx`);
+  showToast('✓ File exported','success');
+}
+
+// ── EDIT DAY MODAL (for any past/future day) ───────────────────
+let editKey=null, editIsOff=false;
+
+function openEditDay(y,m,d) {
+  editKey=dk(y,m,d);
+  const e=app.logs[editKey];
+  const dn=DAYS[new Date(y,m,d).getDay()];
+  document.getElementById('editDayTitle').textContent=`✏️ Edit Day ${d}`;
+  document.getElementById('editDaySubtitle').textContent=`${dn}, ${MONTHS[m]} ${y}`;
+
+  if(e){
+    document.getElementById('editAttendInp').value=e.attend||'';
+    document.getElementById('editLeaveInp').value=e.leave||'';
+    document.getElementById('editNoteInp').value=e.note||'';
+    document.getElementById('editLeaveTypeSel').value=e.leaveType||'paid';
+    editIsOff=e.isOff||false;
+  } else {
+    document.getElementById('editAttendInp').value='';
+    document.getElementById('editLeaveInp').value='';
+    document.getElementById('editNoteInp').value='';
+    editIsOff=false;
+  }
+  updateEditOffToggle();
+  editLiveCalc();
+  document.getElementById('editDayOverlay').style.display='flex';
+}
+
+function closeEditDay() {
+  document.getElementById('editDayOverlay').style.display='none';
+  editKey=null;
+}
+
+function toggleEditOff() {
+  editIsOff=!editIsOff;
+  updateEditOffToggle();
+  editLiveCalc();
+}
+
+function updateEditOffToggle() {
+  const tog=document.getElementById('editOffToggle');
+  const att=document.getElementById('editAttendInp');
+  const lv=document.getElementById('editLeaveInp');
+  const ltWrap=document.getElementById('editLeaveTypeWrap');
+  tog.classList.toggle('active',editIsOff);
+  att.disabled=editIsOff; att.style.opacity=editIsOff?'0.3':'1';
+  lv.disabled=editIsOff; lv.style.opacity=editIsOff?'0.3':'1';
+  ltWrap.style.display=editIsOff?'block':'none';
+  if(editIsOff){
+    const existing = editKey ? app.logs[editKey] : null;
+    if(!existing || !existing.leaveType){
+      autoSelectLeaveType(editKey, 'editLeaveTypeSel', null);
+    }
+  }
+}
+
+function editLiveCalc() {
+  const s=getSett();
+  const a=document.getElementById('editAttendInp').value;
+  const l=document.getElementById('editLeaveInp').value;
+  const pr=document.getElementById('editLivePreview');
+  if(a&&l&&!editIsOff){
+    const {workedMins,otMins}=calcWork(a,l,s.dailyH);
+    document.getElementById('editLiveWork').textContent=fmtMins(workedMins);
+    document.getElementById('editLiveOT').textContent=otMins>0?fmtMins(otMins):'—';
+    pr.style.display='flex';
+  } else { pr.style.display='none'; }
+}
+
+function saveEditDay() {
+  if(!editKey) return;
+  // Note: if the previous value for this day already deducted a leave balance,
+  // we don't auto-restore it here — use the leave balance settings to correct manually if needed.
+  saveDayGeneric(editKey, 'editAttendInp','editLeaveInp','editNoteInp', editIsOff, 'editLeaveTypeSel', (entry)=>{
+    closeEditDay();
+    renderLog();
+    if(editKey===todayKey()) initToday();
+  });
+}
+
+// ── BULK TEXT ENTRY ─────────────────────────────────────────────
+function openBulkEntry() {
+  const sel=document.getElementById('bulkMonthSel');
+  if(!sel.options.length){
+    sel.innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
+  }
+  const now=new Date();
+  sel.value=now.getMonth();
+  document.getElementById('bulkYearInp').value=now.getFullYear();
+  document.getElementById('bulkText').value='';
+  document.getElementById('bulkPreviewBox').style.display='none';
+  document.getElementById('bulkOverlay').style.display='flex';
+}
+
+function closeBulkEntry() {
+  document.getElementById('bulkOverlay').style.display='none';
+}
+
+function parseBulkEntry() {
+  const month=parseInt(document.getElementById('bulkMonthSel').value);
+  const year=parseInt(document.getElementById('bulkYearInp').value);
+  const raw=document.getElementById('bulkText').value.trim();
+  const s=getSett();
+
+  if(!raw){showToast('Enter the month\'s data first','error');return;}
+  if(!year||year<2000){showToast('Enter a valid year','error');return;}
+
+  const dim=new Date(year,month+1,0).getDate();
+  const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const results=[];
+
+  for(const line of lines){
+    let finalParts=line.split(/[,\t]+/).map(p=>p.trim()).filter(p=>p.length>0);
+    if(finalParts.length<2){
+      finalParts=line.split(/\s+/).map(p=>p.trim()).filter(p=>p.length>0);
+    }
+
+    if(finalParts.length<2){
+      results.push({raw:line, ok:false, msg:'Unrecognized format'});
+      continue;
+    }
+
+    const dayNum=parseInt(finalParts[0]);
+    if(!dayNum||dayNum<1||dayNum>dim){
+      results.push({raw:line, ok:false, msg:`Invalid day number (${finalParts[0]})`});
+      continue;
+    }
+
+    const rest=finalParts.slice(1).join(' ').trim();
+    const offWords=['off','holiday','leave','absent'];
+    const isOffDay = finalParts.length===2 && offWords.some(w=>rest.toLowerCase().includes(w));
+
+    if(isOffDay){
+      results.push({day:dayNum, isOff:true, ok:true});
+      continue;
+    }
+
+    if(finalParts.length<3){
+      results.push({raw:line, ok:false, msg:'Needs check-in and check-out, or "off"'});
+      continue;
+    }
+
+    const norm=(t)=>{
+      t=t.trim();
+      let m=t.match(/^(\d{1,2}):(\d{2})$/);
+      if(m) return `${p2(parseInt(m[1]))}:${m[2]}`;
+      m=t.match(/^(\d{1,2})(\d{2})$/);
+      if(m) return `${p2(parseInt(m[1]))}:${m[2]}`;
+      m=t.match(/^(\d{1,2})$/);
+      if(m) return `${p2(parseInt(m[1]))}:00`;
+      return null;
+    };
+
+    const attend=norm(finalParts[1]);
+    const leave=norm(finalParts[2]);
+
+    if(!attend||!leave){
+      results.push({raw:line, ok:false, msg:'Invalid time format (use HH:MM)'});
+      continue;
+    }
+
+    results.push({day:dayNum, attend, leave, isOff:false, ok:true});
+  }
+
+  const box=document.getElementById('bulkPreviewBox');
+  const okCount=results.filter(r=>r.ok).length;
+  const errCount=results.filter(r=>!r.ok).length;
+
+  let html=`<div class="ab-summary">${okCount} valid day(s)${errCount?` — ${errCount} line(s) with issues`:''}</div>`;
+  html+=results.map(r=>{
+    if(r.ok){
+      const txt=r.isOff?`Day ${r.day}: Off`:`Day ${r.day}: ${r.attend} → ${r.leave}`;
+      return `<div class="ab-line ab-ok">✓ ${txt}</div>`;
+    } else {
+      return `<div class="ab-line ab-err">✗ "${r.raw}" — ${r.msg}</div>`;
+    }
+  }).join('');
+  box.innerHTML=html;
+  box.style.display='block';
+
+  if(okCount===0){
+    showToast('No valid lines to save','error');
+    return;
+  }
+
+  for(const r of results){
+    if(!r.ok) continue;
+    const key=dk(year,month,r.day);
+    if(r.isOff){
+      app.logs[key]={attend:'',leave:'',isOff:true,note:'',workedMins:0,otMins:0};
+    } else {
+      const calc=calcWork(r.attend,r.leave,s.dailyH);
+      app.logs[key]={attend:r.attend,leave:r.leave,isOff:false,note:'',workedMins:calc.workedMins,otMins:calc.otMins};
+    }
+  }
+  persist();
+  showToast(`✓ Saved ${okCount} day(s)`,'success');
+
+  setTimeout(()=>{
+    closeBulkEntry();
+    initToday();
+    logY=year; logM=month;
+  }, errCount ? 1800 : 700);
+}
+
+// ── MULTI-DAY SHIFT ───────────────────────────────────────────
+function openMultiDayShift() {
+  document.getElementById('mdCheckinInp').value='';
+  document.getElementById('mdCheckoutInp').value='';
+  document.getElementById('mdNoteInp').value='';
+  document.getElementById('mdPreviewBox').style.display='none';
+  document.getElementById('multiDayOverlay').style.display='flex';
+}
+
+function closeMultiDayShift() {
+  document.getElementById('multiDayOverlay').style.display='none';
+}
+
+// Splits a continuous multi-day shift into per-calendar-day worked minutes.
+// Each full day in between gets 24h; the start and end days get whatever
+// portion of the shift actually falls on them.
+function splitShiftAcrossDays(checkinDate, checkoutDate) {
+  const days = [];
+  let cursor = new Date(checkinDate);
+  cursor.setHours(0,0,0,0);
+  const endDay = new Date(checkoutDate);
+  endDay.setHours(0,0,0,0);
+
+  while(cursor <= endDay){
+    const dayStart = new Date(cursor);
+    const dayEnd = new Date(cursor);
+    dayEnd.setDate(dayEnd.getDate()+1);
+
+    const segStart = checkinDate > dayStart ? checkinDate : dayStart;
+    const segEnd = checkoutDate < dayEnd ? checkoutDate : dayEnd;
+    const mins = Math.max(0, Math.round((segEnd - segStart) / 60000));
+
+    if(mins>0){
+      days.push({
+        y: cursor.getFullYear(),
+        m: cursor.getMonth(),
+        d: cursor.getDate(),
+        // Show the actual clock times worked on this specific calendar day
+        attend: (segStart.getTime()===checkinDate.getTime() || segStart.getHours()!==0 || segStart.getMinutes()!==0)
+          ? `${p2(segStart.getHours())}:${p2(segStart.getMinutes())}` : '00:00',
+        leave: (segEnd.getTime()===checkoutDate.getTime() || segEnd.getHours()!==0 || segEnd.getMinutes()!==0)
+          ? `${p2(segEnd.getHours())}:${p2(segEnd.getMinutes())}` : '24:00',
+        workedMins: mins
+      });
+    }
+    cursor.setDate(cursor.getDate()+1);
+  }
+  return days;
+}
+
+function saveMultiDayShift() {
+  const checkinRaw = document.getElementById('mdCheckinInp').value;
+  const checkoutRaw = document.getElementById('mdCheckoutInp').value;
+  const note = document.getElementById('mdNoteInp').value.trim();
+
+  if(!checkinRaw || !checkoutRaw){ showToast('Enter both check-in and check-out date & time','error'); return; }
+
+  const checkinDate = new Date(checkinRaw);
+  const checkoutDate = new Date(checkoutRaw);
+
+  if(checkoutDate <= checkinDate){ showToast('Check-out must be after check-in','error'); return; }
+
+  const totalMins = Math.round((checkoutDate - checkinDate) / 60000);
+  if(totalMins < 24*60){
+    if(!confirm('This shift is under 24 hours — for a same-day or overnight shift you can just use the normal Today entry instead. Continue anyway with Multi-Day Shift?')) return;
+  }
+
+  const days = splitShiftAcrossDays(checkinDate, checkoutDate);
+  if(!days.length){ showToast('Could not calculate shift days','error'); return; }
+
+  const shiftId = 'shift_'+Date.now();
+  const box=document.getElementById('mdPreviewBox');
+  let html = `<div class="ab-summary">${fmtMins(totalMins)} total, split across ${days.length} day(s):</div>`;
+  html += days.map(dy=>{
+    const dateDisp = `${MONTHS[dy.m]} ${dy.d}, ${dy.y}`;
+    return `<div class="ab-line ab-ok">✓ ${dateDisp}: ${dy.attend} → ${dy.leave} (${fmtMins(dy.workedMins)})</div>`;
+  }).join('');
+  box.innerHTML = html;
+  box.style.display = 'block';
+
+  // Save each day as a normal log entry, but tagged as part of this multi-day shift.
+  // No per-day overtime is computed here — the aggregate monthly overtime calculation
+  // (total hours minus days×dailyHours) already handles it correctly using workedMins.
+  days.forEach(dy=>{
+    const key = dk(dy.y, dy.m, dy.d);
+    app.logs[key] = {
+      attend: dy.attend,
+      leave: dy.leave,
+      isOff: false,
+      note: note ? `${note} (multi-day shift)` : 'Part of a multi-day shift',
+      workedMins: dy.workedMins,
+      otMins: 0, // aggregate OT calc uses workedMins directly, not per-day otMins, for these
+      multiDayShift: true,
+      shiftId
+    };
+  });
+
+  persist();
+  showToast(`✓ Multi-day shift saved across ${days.length} day(s)`,'success');
+  setTimeout(()=>{
+    closeMultiDayShift();
+    initToday();
+  }, 1200);
+}
+
+// ── NAV ───────────────────────────────────────────────────────
+function showPage(name,btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='today') initToday();
+  else if(name==='log') initLog();
+  else if(name==='report') initReport();
+  else if(name==='pasthours') initPastHours();
+  else if(name==='expenses') initExpenses();
+  else if(name==='settled') initSettledPage();
+  else if(name==='settings') loadSettForm();
+}
+
+// ── TOAST ─────────────────────────────────────────────────────
+function showToast(msg,type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast '+type+' show';
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ── EXPENSES & CUSTODY ───────────────────────────────────────────
+let currentExpType='work';
+
+function initExpenses() {
+  renderCustodySummary();
+  setExpType('work');
+  document.getElementById('expDate').value=todayKey();
+  document.getElementById('expAmount').value='';
+  document.getElementById('expDesc').value='';
+  renderExpenseLog();
+}
+
+function setExpType(type) {
+  currentExpType=type;
+  document.getElementById('expTypeWorkBtn').classList.toggle('exp-active-work', type==='work');
+  document.getElementById('expTypePersonalBtn').classList.toggle('exp-active-personal', type==='personal');
+}
+
+function saveExpense() {
+  const date=document.getElementById('expDate').value;
+  const amount=parseFloat(document.getElementById('expAmount').value);
+  const desc=document.getElementById('expDesc').value.trim();
+  if(!date){showToast('Pick a date','error');return;}
+  if(!amount||amount<=0){showToast('Enter a valid amount','error');return;}
+
+  const now=new Date();
+  const id='exp_'+now.getTime()+'_'+Math.random().toString(36).slice(2,7);
+  app.expenses[id]={
+    date,
+    amount,
+    type: currentExpType,
+    desc
+  };
+  persist();
+  document.getElementById('expDate').value=todayKey();
+  document.getElementById('expAmount').value='';
+  document.getElementById('expDesc').value='';
+  renderCustodySummary();
+  renderExpenseLog();
+  showToast(`✓ ${currentExpType==='work'?'Work':'Personal'} expense saved`,'success');
+}
+
+function getAllExpensesSorted() {
+  return Object.entries(app.expenses)
+    .map(([id,e])=>({id,...e}))
+    .sort((a,b)=> {
+      const dateCompare = b.date.localeCompare(a.date);
+      if(dateCompare!==0) return dateCompare;
+      // Same date: show most recently entered first (id starts with exp_<timestamp>_)
+      return b.id.localeCompare(a.id);
+    });
+}
+
+// Extracts the creation timestamp embedded in an expense/repayment id (e.g. "exp_1719999999999_ab3kf").
+// Falls back to treating the entry as "old" (timestamp 0) if the id has no parseable timestamp,
+// which only affects very old pre-id legacy records and keeps them safely on the old side of any settlement.
+function idTimestamp(id) {
+  if(!id) return 0;
+  const parts = String(id).split('_');
+  const ts = parseInt(parts[1]);
+  return isNaN(ts) ? 0 : ts;
+}
+
+// Formats an expense/repayment id's embedded creation timestamp as "HH:MM" for display.
+// Returns empty string if no valid timestamp is available (e.g. very old legacy records).
+function idTimeDisplay(id) {
+  const ts = idTimestamp(id);
+  if(!ts) return '';
+  const d = new Date(ts);
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+
+// Expenses logged since the last settlement (or all expenses, if never settled).
+// Uses the exact moment the expense was ENTERED (not just its date field), so an expense
+// added later in the same day as a settlement is correctly placed in the new period.
+function getCurrentPeriodExpenses() {
+  const all=Object.entries(app.expenses).map(([id,e])=>({id,...e}));
+  if(!app.lastSettlementTimestamp) return all;
+  return all.filter(e=>idTimestamp(e.id) > app.lastSettlementTimestamp);
+}
+
+function renderCustodySummary() {
+  const current=getCurrentPeriodExpenses();
+  const workSpent = current.filter(e=>e.type==='work').reduce((s,e)=>s+e.amount,0);
+  // personalSpent = only NEW personal spending entered this period (no fake carry-over expense involved anymore).
+  const personalSpent = current.filter(e=>e.type==='personal').reduce((s,e)=>s+e.amount,0);
+  const custody = app.custody||0;
+  const totalRepaid = app.repayments.filter(r=>!app.lastSettlementTimestamp || idTimestamp(r.id)>app.lastSettlementTimestamp).reduce((s,r)=>s+r.amount,0);
+
+  // The custody should only ever be used for work expenses.
+  // companyOwesYou: work spending that exceeded the custody — you paid that out of your own pocket.
+  const companyOwesYou = Math.max(0, workSpent - custody);
+
+  // Three-figure owed breakdown:
+  // 1) carriedOverOwed: a plain number carried in from the last settlement (not an expense).
+  // 2) newPeriodOwed: new personal spending this period, reduced by any repayments (repayments
+  //    apply against the total, but for display we net them off the new portion first since that's
+  //    the more recently incurred debt — the carried-over figure stays visible as-is unless repayments exceed the new portion).
+  // 3) totalOwed: the real combined amount — repayments are actually applied against this total directly.
+  const carriedOverOwed = app.carriedOverOwed||0;
+  const totalOwedBeforeRepay = carriedOverOwed + personalSpent;
+  const totalOwed = Math.max(0, totalOwedBeforeRepay - totalRepaid);
+  // For the two-line breakdown display, apply repayments first to the new portion, then the carried-over portion,
+  // so the two lines always sum exactly to totalOwed.
+  const newPeriodOwedDisplay = Math.max(0, personalSpent - totalRepaid);
+  const carriedOverOwedDisplay = Math.max(0, totalOwed - newPeriodOwedDisplay);
+
+  const totalSpent = workSpent + personalSpent + carriedOverOwed;
+  const remainingCustody = custody - totalSpent + totalRepaid; // raw cash left physically, including repayments returned
+
+  // Should Have = custody minus work expenses only (what should be left if personal spending didn't happen)
+  // Actually Have = custody minus work, new personal spending, AND any carried-over debt, PLUS anything already repaid
+  const shouldHave = custody - workSpent;
+  const actuallyHave = custody - workSpent - personalSpent - carriedOverOwed + totalRepaid;
+
+  document.getElementById('custodyTotalVal').textContent = custody.toLocaleString('en-US');
+  document.getElementById('custodyWorkSpentVal').textContent = workSpent.toLocaleString('en-US');
+  document.getElementById('custodyOwedToYouVal').textContent = companyOwesYou.toLocaleString('en-US',{maximumFractionDigits:2});
+  document.getElementById('custodyPersonalVal').textContent = personalSpent.toLocaleString('en-US');
+  document.getElementById('custodyTotalOweStatVal').textContent = totalOwed.toLocaleString('en-US',{maximumFractionDigits:2});
+  document.getElementById('custodyCarriedOweVal').textContent = carriedOverOwedDisplay.toLocaleString('en-US',{maximumFractionDigits:2});
+  document.getElementById('custodyNewOweVal').textContent = newPeriodOwedDisplay.toLocaleString('en-US',{maximumFractionDigits:2});
+  document.getElementById('custodyTotalOweVal').textContent = totalOwed.toLocaleString('en-US',{maximumFractionDigits:2});
+  document.getElementById('custodyShouldHaveVal').textContent = shouldHave.toLocaleString('en-US',{maximumFractionDigits:2});
+  document.getElementById('custodyActuallyHaveVal').textContent = actuallyHave.toLocaleString('en-US',{maximumFractionDigits:2});
+
+  let explain = `Cash remaining from custody (this period): <b>${remainingCustody.toLocaleString('en-US',{maximumFractionDigits:2})}</b>. `;
+  if(companyOwesYou>0){
+    explain += `You spent more on work than your custody covers — the company owes you <b>${companyOwesYou.toLocaleString('en-US',{maximumFractionDigits:2})}</b> back.`;
+  } else if(totalOwed>0){
+    explain += `You owe the company <b>${totalOwed.toLocaleString('en-US',{maximumFractionDigits:2})}</b> total`;
+    if(carriedOverOwed>0) explain += ` (${carriedOverOwedDisplay.toLocaleString('en-US',{maximumFractionDigits:2})} carried over + ${newPeriodOwedDisplay.toLocaleString('en-US',{maximumFractionDigits:2})} new)`;
+    explain += totalRepaid>0 ? `, after ${totalRepaid.toLocaleString('en-US')} already repaid.` : '.';
+  } else {
+    explain += `Custody is fully balanced — no amount owed either way.`;
+    if(totalRepaid>0) explain += ` (Total repaid so far: ${totalRepaid.toLocaleString('en-US')}.)`;
+  }
+  if(app.lastSettlementDate){
+    explain += ` <span style="color:var(--muted)">(Tracking since last settlement on ${app.lastSettlementDate.split('-').reverse().join('/')}.)</span>`;
+  }
+  document.getElementById('custodyExplain').innerHTML = explain;
+
+  renderRepaymentHistory();
+}
+
+// ── SETTLEMENT (PERIODIC RESET) ─────────────────────────────────
+function openSettleModal() {
+  const current=getCurrentPeriodExpenses();
+  const workSpent = current.filter(e=>e.type==='work').reduce((s,e)=>s+e.amount,0);
+  const personalSpent = current.filter(e=>e.type==='personal').reduce((s,e)=>s+e.amount,0);
+  const custody = app.custody||0;
+  const totalRepaid = app.repayments.filter(r=>!app.lastSettlementTimestamp || idTimestamp(r.id)>app.lastSettlementTimestamp).reduce((s,r)=>s+r.amount,0);
+  const carriedOverOwed = app.carriedOverOwed||0;
+  const totalOwed = Math.max(0, carriedOverOwed + personalSpent - totalRepaid);
+
+  if(current.length===0 && carriedOverOwed===0){
+    document.getElementById('settlePreview').innerHTML=`<div class="ab-line">No expenses logged since your last settlement. Settling now will just reset the period.</div>`;
+  } else {
+    let carryNote = totalOwed>0
+      ? `<div class="ab-line" style="margin-top:6px;color:var(--danger)">You'll still owe <b>${totalOwed.toLocaleString('en-US',{maximumFractionDigits:2})}</b> total — this carries forward as an opening balance for the next period (not counted as a new expense).</div>`
+      : '';
+    document.getElementById('settlePreview').innerHTML=`
+      <div class="ab-summary">This period's summary (${current.length} expense(s)):</div>
+      ${carriedOverOwed>0?`<div class="ab-line">Carried over from before: <b>${carriedOverOwed.toLocaleString('en-US')}</b></div>`:''}
+      <div class="ab-line">Work expenses: <b>${workSpent.toLocaleString('en-US')}</b></div>
+      <div class="ab-line">Personal expenses (new): <b>${personalSpent.toLocaleString('en-US')}</b></div>
+      <div class="ab-line">Repaid: <b>${totalRepaid.toLocaleString('en-US')}</b></div>
+      <div class="ab-line">Custody amount: <b>${custody.toLocaleString('en-US')}</b></div>
+      <div class="ab-line" style="margin-top:6px;color:var(--text)">After settling, this period archives and your custody resets to <b>${custody.toLocaleString('en-US')}</b> as a fresh advance.</div>
+      ${carryNote}
+    `;
+  }
+  document.getElementById('settleOverlay').style.display='flex';
+}
+
+function closeSettleModal() {
+  document.getElementById('settleOverlay').style.display='none';
+}
+
+function confirmSettle() {
+  const current=getCurrentPeriodExpenses();
+  const workSpent = current.filter(e=>e.type==='work').reduce((s,e)=>s+e.amount,0);
+  const personalSpent = current.filter(e=>e.type==='personal').reduce((s,e)=>s+e.amount,0);
+  const totalRepaid = app.repayments.filter(r=>!app.lastSettlementTimestamp || idTimestamp(r.id)>app.lastSettlementTimestamp).reduce((s,r)=>s+r.amount,0);
+  const carriedOverOwedBefore = app.carriedOverOwed||0;
+  const totalOwed = Math.max(0, carriedOverOwedBefore + personalSpent - totalRepaid);
+
+  const now=new Date();
+  const settlementDate=todayKey();
+  const settlementTimestamp=now.getTime();
+
+  app.settlements.push({
+    date: settlementDate,
+    timestamp: settlementTimestamp,
+    periodStart: app.lastSettlementDate || 'beginning',
+    custodyAmount: app.custody||0,
+    workSpent, personalSpent,
+    expenseCount: current.length,
+    expenseIds: current.map(e=>e.id),
+    carriedOverOwedBefore: carriedOverOwedBefore,
+    carriedOverOwed: totalOwed
+  });
+
+  app.lastSettlementDate = settlementDate;
+  app.lastSettlementTimestamp = settlementTimestamp;
+
+  // The full amount still owed (carried-in debt + new personal spending − repayments) becomes
+  // the new carried-over balance for the next period. This is a plain number, NOT an expense entry,
+  // so it never gets mixed into "personal expenses" totals again.
+  app.carriedOverOwed = totalOwed;
+
+  persist();
+  closeSettleModal();
+  renderCustodySummary();
+  renderExpenseLog();
+  showToast(totalOwed>0
+    ? `✓ Period settled — ${totalOwed.toLocaleString('en-US')} carried over to new period`
+    : '✓ Period settled — custody reset','success');
+}
+
+// ── PAST WORK HOURS PAGE ──────────────────────────────────────────
+let pastHoursY, pastHoursM;
+
+function initPastHours() {
+  const now=new Date();
+  if(!pastHoursY){
+    // Default to last month, since "past" implies a completed month
+    pastHoursM = now.getMonth()-1;
+    pastHoursY = now.getFullYear();
+    if(pastHoursM<0){ pastHoursM=11; pastHoursY--; }
+  }
+  renderPastHours();
+}
+
+function chPastHoursMonth(d) {
+  pastHoursM+=d;
+  if(pastHoursM<0){pastHoursM=11;pastHoursY--;} if(pastHoursM>11){pastHoursM=0;pastHoursY++;}
+  renderPastHours();
+}
+
+function renderPastHours() {
+  document.getElementById('pastHoursMonthLbl').textContent=`${MONTHS[pastHoursM]} ${pastHoursY}`;
+  const s=getSett();
+  const dim=new Date(pastHoursY,pastHoursM+1,0).getDate();
+
+  let workDays=0, offDays=0, totalWork=0, unpaidDays=0;
+  const dayRows=[];
+
+  for(let d=1;d<=dim;d++){
+    const key=dk(pastHoursY,pastHoursM,d);
+    const e=app.logs[key];
+    if(!e) continue;
+    if(e.isOff){
+      offDays++;
+      if(e.leaveType==='unpaid') unpaidDays++;
+      dayRows.push({d,e});
+      continue;
+    }
+    // Skip days that are checked in but not checked out yet (shouldn't normally happen for past
+    // months, but guard against it so it never wrongly shows as a -8h deficit).
+    if(e.attend && !e.leave){ dayRows.push({d,e}); continue; }
+
+    workDays++; totalWork+=e.workedMins||0;
+    dayRows.push({d,e});
+  }
+
+  if(dayRows.length===0){
+    document.getElementById('pastHoursContent').innerHTML=`<div class="empty-state"><div class="es-icon">🗂️</div><p>No attendance data for this month</p></div>`;
+    return;
+  }
+
+  const dailyMins=Math.round(s.dailyH*60);
+  const aggregateOT = totalWork - (workDays*dailyMins);
+
+  const rowsHtml = dayRows.map(({d,e})=>{
+    const dn=DAYS[new Date(pastHoursY,pastHoursM,d).getDay()];
+    const cls=e.isOff?'loff':'lwork';
+    const leaveTypeLabel = e.leaveType==='paid'?'Paid Holiday':e.leaveType==='annual'?'Annual':e.leaveType==='casual'?'Casual':e.leaveType==='comp'?'Comp':e.leaveType==='unpaid'?'Unpaid':'Off';
+    const times=e.isOff?`<span class="tag tag-off">${leaveTypeLabel}</span>`:`${e.attend} → ${e.leave}`;
+    const hrs=e.isOff?'':`<div class="log-hw">${fmtMins(e.workedMins)}</div>`;
+    const holidayTag=e.doublePay?`<span class="tag tag-carry" style="margin-left:6px">2× Holiday</span>`:'';
+    return `<div class="log-item ${cls}" style="cursor:default" onclick="event.stopPropagation()">
+      <div class="log-num">${d}</div>
+      <div class="log-info">
+        <div class="log-times">${times} ${holidayTag}</div>
+        <div class="log-note">${dn}${e.note?' · '+e.note:''}</div>
+      </div>
+      <div class="log-hours">${hrs}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('pastHoursContent').innerHTML=`
+    <div class="stat-row">
+      <div class="stat-box green"><div class="sb-val">${workDays}</div><div class="sb-label">Days Worked</div></div>
+      <div class="stat-box orange"><div class="sb-val" style="${aggregateOT<0?'color:var(--danger)':''}">${fmtMinsSigned(aggregateOT)}</div><div class="sb-label">Total OT (aggregate)</div></div>
+      <div class="stat-box blue"><div class="sb-val">${Math.floor(totalWork/60)}<span style="font-size:.9rem">h</span></div><div class="sb-label">Total Hours</div></div>
+      <div class="stat-box red"><div class="sb-val">${offDays}</div><div class="sb-label">Days Off${unpaidDays>0?` (${unpaidDays} unpaid)`:''}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Day-by-Day</div>
+      <div class="log-list">${rowsHtml}</div>
+    </div>
+  `;
+}
+
+// ── SETTLED EXPENSES PAGE ────────────────────────────────────────
+let settledY, settledM, expandedSettlementTs=null;
+
+function initSettledPage() {
+  const now=new Date();
+  if(!settledY){settledY=now.getFullYear();settledM=now.getMonth();}
+  renderSettledPage();
+}
+
+function chSettledMonth(d) {
+  settledM+=d;
+  if(settledM<0){settledM=11;settledY--;} if(settledM>11){settledM=0;settledY++;}
+  expandedSettlementTs=null;
+  renderSettledPage();
+}
+
+function renderSettledPage() {
+  document.getElementById('settledMonthLbl').textContent=`${MONTHS[settledM]} ${settledY}`;
+
+  // Group by the MONTH THE SETTLEMENT HAPPENED (s.date), not the dates of the expenses inside it.
+  const prefix=`${settledY}-${p2(settledM+1)}`;
+  const monthSettlements = app.settlements.filter(s=>s.date.startsWith(prefix)).sort((a,b)=>b.timestamp-a.timestamp);
+
+  if(!monthSettlements.length){
+    document.getElementById('settledListForMonth').innerHTML=`<div class="empty-state"><div class="es-icon">📁</div><p>No settlements were made in this month</p></div>`;
+  } else {
+    document.getElementById('settledListForMonth').innerHTML=monthSettlements.map(s=>{
+      const dateDisp=s.date.split('-').reverse().join('/');
+      const total=s.workSpent+s.personalSpent;
+      const isExpanded = expandedSettlementTs===s.timestamp;
+
+      let detailHtml='';
+      if(isExpanded){
+        const items=(s.expenseIds||[]).map(id=>app.expenses[id]).filter(Boolean)
+          .sort((a,b)=>idTimestamp(b.id||'')-idTimestamp(a.id||''));
+        // expenseIds reference live app.expenses entries; if an expense was later deleted it won't appear.
+        const itemsHtml = items.length ? items.map(e=>{
+          const tag=e.type==='work'?'<span class="tag tag-ot">Work</span>':'<span class="tag tag-carry">Personal</span>';
+          const dDisp=e.date.split('-').reverse().join('/');
+          const timeDisp=idTimeDisplay(e.id);
+          return `<div class="log-item" style="cursor:default;margin-bottom:6px" onclick="event.stopPropagation()">
+            <div class="log-num" style="background:rgba(255,255,255,.05)">💵</div>
+            <div class="log-info">
+              <div class="log-times">${e.amount.toLocaleString('en-US')} ${tag}${timeDisp?` <span style="color:var(--muted);font-weight:600;font-size:.75rem">${timeDisp}</span>`:''}</div>
+              <div class="log-note">${dDisp}${e.desc?' · '+e.desc:''}</div>
+            </div>
+          </div>`;
+        }).join('') : `<div class="sf-hint">No expense details available for this settlement.</div>`;
+
+        detailHtml = `<div style="padding:10px 4px 4px">${itemsHtml}</div>`;
+      }
+
+      return `<div class="exp-day-group" style="cursor:pointer" onclick="toggleSettlementDetail(${s.timestamp})">
+        <div class="exp-day-header">
+          <span>✅ ${dateDisp} · ${s.expenseCount} expense(s)</span>
+          <span style="display:flex;align-items:center;gap:10px">
+            <span class="exp-day-total">${total.toLocaleString('en-US')}</span>
+            <button class="log-del" onclick="event.stopPropagation();deleteSettlement(${s.timestamp})" title="Delete settlement">🗑</button>
+          </span>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);padding:0 4px">
+          Work: ${s.workSpent.toLocaleString('en-US')} · Personal: ${s.personalSpent.toLocaleString('en-US')} · Custody was ${s.custodyAmount.toLocaleString('en-US')}
+          ${s.carriedOverOwed>0?` · Carried over: ${s.carriedOverOwed.toLocaleString('en-US')}`:''}
+        </div>
+        ${detailHtml}
+      </div>`;
+    }).join('');
+  }
+
+  renderTotalExpenseLog();
+}
+
+function toggleSettlementDetail(timestamp) {
+  expandedSettlementTs = expandedSettlementTs===timestamp ? null : timestamp;
+  renderSettledPage();
+}
+
+function renderTotalExpenseLog() {
+  const all=Object.values(app.expenses);
+  const workTotal=all.filter(e=>e.type==='work').reduce((s,e)=>s+e.amount,0);
+  const personalTotal=all.filter(e=>e.type==='personal').reduce((s,e)=>s+e.amount,0);
+  document.getElementById('totalAllWorkVal').textContent=workTotal.toLocaleString('en-US');
+  document.getElementById('totalAllPersonalVal').textContent=personalTotal.toLocaleString('en-US');
+}
+
+function deleteSettlement(timestamp) {
+  const idx = app.settlements.findIndex(s=>s.timestamp===timestamp);
+  if(idx===-1){ showToast('Settlement not found','error'); return; }
+  const s = app.settlements[idx];
+  const dateDisp = s.date.split('-').reverse().join('/');
+
+  // Only the MOST RECENT settlement can be safely undone (restoring earlier ones would
+  // conflict with settlements that happened after them). Check this first.
+  const sortedByTime = app.settlements.slice().sort((a,b)=>b.timestamp-a.timestamp);
+  if(sortedByTime[0].timestamp !== timestamp){
+    showToast('Only the most recent settlement can be removed. Remove newer ones first.','error');
+    return;
+  }
+
+  if(!confirm(`Delete the settlement from ${dateDisp}?\n\nThis will:\n- Remove the carried-over balance it created (${s.carriedOverOwed?s.carriedOverOwed.toLocaleString('en-US'):0})\n- Restore the period to how it was right before you settled\n\nThis cannot be undone.`)) return;
+
+  // Remove the settlement record itself.
+  app.settlements.splice(idx,1);
+
+  // Restore the carried-over owed number to what it was BEFORE this settlement.
+  app.carriedOverOwed = s.carriedOverOwedBefore || 0;
+
+  // Restore lastSettlementDate/Timestamp to whatever the previous settlement was (or null if this was the first ever).
+  const remaining = app.settlements.slice().sort((a,b)=>a.timestamp-b.timestamp);
+  if(remaining.length){
+    const prev = remaining[remaining.length-1];
+    app.lastSettlementDate = prev.date;
+    app.lastSettlementTimestamp = prev.timestamp;
+  } else {
+    app.lastSettlementDate = null;
+    app.lastSettlementTimestamp = null;
+  }
+
+  persist();
+  renderCustodySummary();
+  renderExpenseLog();
+  renderSettledPage();
+  showToast('✓ Settlement deleted — period restored','success');
+}
+
+function openRepayModal() {
+  document.getElementById('repayDateInp').value=todayKey();
+  document.getElementById('repayAmountInp').value='';
+  document.getElementById('repayOverlay').style.display='flex';
+}
+
+function closeRepayModal() {
+  document.getElementById('repayOverlay').style.display='none';
+}
+
+function confirmRepay() {
+  const date=document.getElementById('repayDateInp').value;
+  const amt=parseFloat(document.getElementById('repayAmountInp').value);
+  if(!date){showToast('Pick a date','error');return;}
+  if(!amt||amt<=0){showToast('Enter a valid amount','error');return;}
+  const id='repay_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  app.repayments.push({id, date, amount: amt});
+  persist();
+  closeRepayModal();
+  renderCustodySummary();
+  showToast(`✓ Repayment of ${amt.toLocaleString('en-US')} recorded`,'success');
+}
+
+function renderRepaymentHistory() {
+  const card=document.getElementById('repaymentHistoryCard');
+  const relevant = app.repayments.filter(r=>!app.lastSettlementTimestamp || idTimestamp(r.id)>app.lastSettlementTimestamp);
+  if(!relevant.length){
+    card.style.display='none';
+    return;
+  }
+  card.style.display='block';
+  const sorted=relevant.slice().sort((a,b)=>{
+    const ta=idTimestamp(a.id), tb=idTimestamp(b.id);
+    if(tb!==ta) return tb-ta;
+    return b.date.localeCompare(a.date);
+  });
+  document.getElementById('repaymentHistoryList').innerHTML=sorted.map(r=>{
+    const dateDisp=r.date.split('-').reverse().join('/');
+    const timeDisp=idTimeDisplay(r.id);
+    return `<div class="log-item" style="cursor:default" onclick="event.stopPropagation()">
+      <div class="log-num" style="background:rgba(34,197,94,.1)">💸</div>
+      <div class="log-info">
+        <div class="log-times">${r.amount.toLocaleString('en-US')} repaid${timeDisp?` <span style="color:var(--muted);font-weight:600;font-size:.75rem">${timeDisp}</span>`:''}</div>
+        <div class="log-note">${dateDisp}</div>
+      </div>
+      <button class="log-del" onclick="delRepayment('${r.id}')" title="Delete">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function delRepayment(id) {
+  if(!confirm('Delete this repayment record? This will increase the amount you owe the company again.')) return;
+  app.repayments = app.repayments.filter(r=>r.id!==id);
+  persist();
+  renderCustodySummary();
+  showToast('Repayment deleted','success');
+}
+
+function openCustodyEdit() {
+  document.getElementById('custodyAddInp').value='';
+  document.getElementById('custodySetInp').value=app.custody||0;
+  document.getElementById('custodyOverlay').style.display='flex';
+}
+
+function closeCustodyEdit() {
+  document.getElementById('custodyOverlay').style.display='none';
+}
+
+function addCustody() {
+  const amt=parseFloat(document.getElementById('custodyAddInp').value);
+  if(!amt||amt<=0){showToast('Enter a valid amount','error');return;}
+  app.custody=(app.custody||0)+amt;
+  persist();
+  closeCustodyEdit();
+  renderCustodySummary();
+  showToast(`✓ Added ${amt.toLocaleString('en-US')} to custody`,'success');
+}
+
+function setCustodyTotal() {
+  const amt=parseFloat(document.getElementById('custodySetInp').value);
+  if(amt===undefined||amt===null||isNaN(amt)||amt<0){showToast('Enter a valid amount','error');return;}
+  app.custody=amt;
+  persist();
+  closeCustodyEdit();
+  renderCustodySummary();
+  showToast('✓ Custody total updated','success');
+}
+
+function renderExpenseLog() {
+  const current=getCurrentPeriodExpenses().slice().sort((a,b)=>{
+    const ta=idTimestamp(a.id), tb=idTimestamp(b.id);
+    if(tb!==ta) return tb-ta;
+    return b.date.localeCompare(a.date);
+  });
+
+  if(!current.length){
+    document.getElementById('expLogList').innerHTML=`<div class="empty-state"><div class="es-icon">📭</div><p>No expenses logged in the current period yet</p></div>`;
+    return;
+  }
+
+  // Group expenses by date (current is already sorted newest-entered-first)
+  const groups=[];
+  let currentGroup=null;
+  for(const e of current){
+    if(!currentGroup || currentGroup.date!==e.date){
+      currentGroup={date:e.date, items:[]};
+      groups.push(currentGroup);
+    }
+    currentGroup.items.push(e);
+  }
+
+  document.getElementById('expLogList').innerHTML=groups.map((g,gi)=>{
+    const d=new Date(g.date+'T00:00:00');
+    const dayName=DAYS[d.getDay()];
+    const dateDisp=g.date.split('-').reverse().join('/');
+    const dayTotal=g.items.reduce((s,e)=>s+e.amount,0);
+    const stripeClass = gi%2===0 ? 'exp-day-stripe-a' : 'exp-day-stripe-b';
+
+    const itemsHtml=g.items.map(e=>{
+      const cls=e.type==='work'?'lot':'loff';
+      const tag=e.type==='work'?'<span class="tag tag-ot">Work</span>':'<span class="tag tag-carry">Personal</span>';
+      const timeDisp=idTimeDisplay(e.id);
+      return `<div class="log-item ${cls}" style="margin-bottom:6px;cursor:default">
+        <div class="log-num" style="background:rgba(255,255,255,.05)">💵</div>
+        <div class="log-info">
+          <div class="log-times">${e.amount.toLocaleString('en-US')} ${tag}${timeDisp?` <span style="color:var(--muted);font-weight:600;font-size:.75rem">${timeDisp}</span>`:''}</div>
+          <div class="log-note">${e.desc||'—'}</div>
+        </div>
+        <button class="log-del" onclick="openEditExpense('${e.id}')" title="Edit" style="color:var(--accent2)">✏️</button>
+        <button class="log-del" onclick="delExpense('${e.id}')" title="Delete">🗑</button>
+      </div>`;
+    }).join('');
+
+    return `<div class="exp-day-group ${stripeClass}">
+      <div class="exp-day-header">
+        <span>${dateDisp} · ${dayName}</span>
+        <span class="exp-day-total">${dayTotal.toLocaleString('en-US')}</span>
+      </div>
+      ${itemsHtml}
+    </div>`;
+  }).join('');
+}
+
+function delExpense(id) {
+  if(!confirm('Delete this expense?')) return;
+  delete app.expenses[id];
+  persist();
+  renderCustodySummary();
+  renderExpenseLog();
+  showToast('Deleted','success');
+}
+
+// ── EDIT EXPENSE ──────────────────────────────────────────────
+let editExpenseId=null, editExpType='work';
+
+function openEditExpense(id) {
+  const e=app.expenses[id];
+  if(!e){ showToast('Expense not found','error'); return; }
+  editExpenseId=id;
+  document.getElementById('editExpDate').value=e.date;
+  document.getElementById('editExpAmount').value=e.amount;
+  document.getElementById('editExpDesc').value=e.desc||'';
+  setEditExpType(e.type);
+  document.getElementById('editExpenseOverlay').style.display='flex';
+}
+
+function closeEditExpense() {
+  document.getElementById('editExpenseOverlay').style.display='none';
+  editExpenseId=null;
+}
+
+function setEditExpType(type) {
+  editExpType=type;
+  document.getElementById('editExpTypeWorkBtn').classList.toggle('exp-active-work', type==='work');
+  document.getElementById('editExpTypePersonalBtn').classList.toggle('exp-active-personal', type==='personal');
+}
+
+function saveEditExpense() {
+  if(!editExpenseId) return;
+  const date=document.getElementById('editExpDate').value;
+  const amount=parseFloat(document.getElementById('editExpAmount').value);
+  const desc=document.getElementById('editExpDesc').value.trim();
+  if(!date){showToast('Pick a date','error');return;}
+  if(!amount||amount<=0){showToast('Enter a valid amount','error');return;}
+
+  const existing=app.expenses[editExpenseId];
+  // Keep the original id (and its embedded creation timestamp) so the expense stays correctly
+  // placed relative to settlements — only date/amount/type/desc are editable, not when it was entered.
+  app.expenses[editExpenseId] = {
+    ...existing,
+    date, amount, type: editExpType, desc
+  };
+  persist();
+  closeEditExpense();
+  renderCustodySummary();
+  renderExpenseLog();
+  showToast('✓ Expense updated','success');
+}
+
+function exportExpensesExcel() {
+  const current=getCurrentPeriodExpenses().slice().sort((a,b)=>idTimestamp(a.id)-idTimestamp(b.id));
+  const rows=[['Date','Amount','Type','Description']];
+  current.forEach(e=>{
+    rows.push([e.date.split('-').reverse().join('/'), e.amount, e.type==='work'?'Work':'Personal', e.desc||'']);
+  });
+  rows.push([]);
+  rows.push(['Custody Total', app.custody||0]);
+  const workTotal=current.filter(e=>e.type==='work').reduce((s,e)=>s+e.amount,0);
+  const personalTotal=current.filter(e=>e.type==='personal').reduce((s,e)=>s+e.amount,0);
+  rows.push(['Current Period Work Spent', workTotal]);
+  rows.push(['Current Period Personal Spent', personalTotal]);
+
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  const now=new Date();
+  const stamp=`${now.getFullYear()}-${p2(now.getMonth()+1)}-${p2(now.getDate())}`;
+  XLSX.utils.book_append_sheet(wb,ws,`Current Period`);
+  XLSX.writeFile(wb,`Expenses_CurrentPeriod_${stamp}.xlsx`);
+  showToast('✓ File exported','success');
+}
+
+function lockApp() {
+  document.getElementById('lockError').style.display='none';
+  document.getElementById('lockPassInp').value='';
+  document.getElementById('lockOverlay').style.display='flex';
+}
+
+// ── SWIPE NAVIGATION BETWEEN TABS ────────────────────────────────
+const TAB_ORDER = ['today','log','report','pasthours','expenses','settled','settings'];
+
+function currentTabIndex() {
+  const activeTab = document.querySelector('.nav-tab.active');
+  if(!activeTab) return 0;
+  const idx = Array.from(document.querySelectorAll('.nav-tab')).indexOf(activeTab);
+  return idx===-1 ? 0 : idx;
+}
+
+function swipeToTab(direction) {
+  // direction: 1 = next tab (swipe left), -1 = previous tab (swipe right)
+  const tabs = document.querySelectorAll('.nav-tab');
+  let idx = currentTabIndex() + direction;
+  if(idx<0 || idx>=TAB_ORDER.length) return; // no wraparound at the ends
+  const btn = tabs[idx];
+  if(btn) showPage(TAB_ORDER[idx], btn);
+}
+
+(function initSwipeGestures(){
+  let touchStartX=0, touchStartY=0, touchStartTime=0;
+  const SWIPE_MIN_DIST=60;      // minimum horizontal distance in px
+  const SWIPE_MAX_VERTICAL=60;  // max vertical drift allowed (to avoid hijacking scrolls)
+  const SWIPE_MAX_TIME=600;     // ms
+
+  document.body.addEventListener('touchstart', (e)=>{
+    // Ignore swipes that start on interactive elements where horizontal drag has its own meaning
+    const tag = e.target.tagName;
+    if(tag==='INPUT' || tag==='SELECT' || tag==='TEXTAREA') return;
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    touchStartTime = Date.now();
+  }, {passive:true});
+
+  document.body.addEventListener('touchend', (e)=>{
+    if(!touchStartTime) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    const dt = Date.now() - touchStartTime;
+    touchStartTime = 0;
+
+    if(dt>SWIPE_MAX_TIME) return;
+    if(Math.abs(dy)>SWIPE_MAX_VERTICAL) return;
+    if(Math.abs(dx)<SWIPE_MIN_DIST) return;
+
+    // Don't swipe pages while a modal overlay is open
+    if(document.querySelector('.setup-overlay[style*="flex"]')) return;
+
+    if(dx<0) swipeToTab(1);   // swiped left → next tab
+    else swipeToTab(-1);      // swiped right → previous tab
+  }, {passive:true});
+})();
+
+// ── INIT ──────────────────────────────────────────────────────
+(function(){
+  if(app.settings&&app.settings.salary>0)
+    document.getElementById('setupOverlay').style.display='none';
+  if(app.password){
+    document.getElementById('lockOverlay').style.display='flex';
+  }
+  initToday(); loadSettForm();
+})();
+
+// ── PWA: SERVICE WORKER REGISTRATION ────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch((err) => {
+      console.log('Service worker registration failed:', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
